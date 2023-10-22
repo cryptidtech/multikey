@@ -7,15 +7,15 @@ library.
 ## Multikey v1 Format 
 
 ```
-multikey     X number of codec-      Y number of key       variable number
-sigil        specific varuints         data units        of data unit octets 
+multikey      count of codec-        count of key         variable number
+sigil        specific varuints        data units        of data unit octets 
 |                  |                      |                     |
-v                  v                      v                     v
-0x3a <varuint> <varuint> X(<varuint>) <varuint> Y(<varuint> Z(OCTET))
-         ^                    ^                      ^
-         |                    |                      |
-      key codec        variable number        Z number of data
-                      of codec-specific        unit octets
+v                  v                      v                  /-----\
+0x3a <varuint> <varuint> N(<varuint>) <varuint> N(<varuint> N(OCTET))
+         ^                \---------/            \-- ^ -------------/
+         |                    |                      |            |
+      key codec        variable number        count of data   variable number
+                      of codec-specific        unit octets    of data units
                             values
 ```
 
@@ -26,9 +26,9 @@ varuint number signifying the number of codec specific values. These contain
 things like key encryption or key derivation parameters. After the codec-
 specific values is a varuint specifying the number of key "data units" in this
 multikey. Each data unit is a piece of key data. For instance an RSA public key
-contains two data units, one is the RSA public exponent and the other is the
-RSA modulus. Each data unit then consists of a varuint encoded octet count
-followed by the octets of the data.
+contains two data units: the RSA public exponent and the RSA modulus. Each data
+unit consists of a varuint encoded octet count followed by the octets of the
+data.
 
 ## Private Keys
 
@@ -39,7 +39,7 @@ other related parameters such as a key derivation function and its parameters.
 ### An example of storing an encrypted Ed25519 private key
 
 In this example we will show how to safely store an Ed25519 private key 
-encrypted using the ChaCha20-Poly1305 AEAD symmetric encryption algorith using 
+encrypted using the ChaCha20-Poly1305 AEAD symmetric encryption algorithm using
 a key derived using the Bcrypt PBKDF function with 10 rounds and a 32-byte 
 salt value. Here is how the multikey is encoded:
 
