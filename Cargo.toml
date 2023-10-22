@@ -1,0 +1,20 @@
+[package]
+name = "multikey"
+version = "0.1.0"
+edition = "2021"
+authors = ["Dave Huseby <dwh@linuxprogrammer.org>"]
+description = "Multikey self-describing cryptographic key data"
+repository = "https://github.com/cryptidtech/multikey.git"
+readme = "README.md"
+license = "Apache-2.0"
+
+[dependencies]
+
+[dev-dependencies]
+anyhow = "1.0"
+chacha20poly1305 = "0.10"
+hex = "0.4"
+rand = "0.8"
+
+[[example]]
+name = "chachatest"
