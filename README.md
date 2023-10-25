@@ -30,6 +30,12 @@ contains two data units: the RSA public exponent and the RSA modulus. Each data
 unit consists of a varuint encoded octet count followed by the octets of the
 data.
 
+### Key Comments
+
+By convention, the first data unit of every multikey contains the comment 
+associated with the key. If there is no comment set, the data unit has a 
+count varuint of 0 and no octets following the count.
+
 ## Private Keys
 
 Private keys are sensitive and should always be kept encrypted when at rest,
