@@ -1,6 +1,5 @@
 use crate::error::Error;
 use multicodec::{codec::Codec, mc::MultiCodec};
-use ssh_key::{private::KeypairData, public::KeyData, Algorithm, PrivateKey, PublicKey};
 use std::fmt;
 use unsigned_varint::{decode, encode};
 
@@ -101,6 +100,23 @@ impl Multikey {
         }
 
         v
+    }
+}
+
+impl fmt::Display for Multikey {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        writeln!(f, "{}:", SIGIL)?;
+        writeln!(f, "\tKey Codec: {}", self.key)?;
+        writeln!(f, "\tCodec-specific Values: [")?;
+        for cv in &self.codec_values {
+            writeln!(f, "\t\t0x{:x}", cv)?;
+        }
+        writeln!(f, "\t]")?;
+        writeln!(f, "\tData Units: [")?;
+        for du in &self.data_units {
+            writeln!(f, "\t\t({}): {}", du.len(), hex::encode(du.as_ref()))?;
+        }
+        writeln!(f, "\t]")
     }
 }
 
@@ -213,6 +229,7 @@ impl TryFrom<&[u8]> for Multikey {
                 let (c_len, p) = decode_usize_from_slice(ptr)?;
                 ptr = p;
                 let comment = String::from_utf8(ptr[..c_len].to_vec())?;
+                ptr = &ptr[c_len..];
 
                 // decode the data units
                 let mut data_units = Vec::with_capacity(num_du - 1);
@@ -235,35 +252,19 @@ impl TryFrom<&[u8]> for Multikey {
     }
 }
 
-impl fmt::Display for Multikey {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        writeln!(f, "{}:", SIGIL)?;
-        writeln!(f, "\tKey Codec: {}", self.key)?;
-        writeln!(f, "\tCodec-specific Values: [")?;
-        for cv in &self.codec_values {
-            writeln!(f, "\t\t0x{:x}", cv)?;
-        }
-        writeln!(f, "\t]")?;
-        writeln!(f, "\tData Units: [")?;
-        for du in &self.data_units {
-            writeln!(f, "\t\t({}): {}", du.len(), hex::encode(du.as_ref()))?;
-        }
-        writeln!(f, "\t]")
-    }
-}
-
-impl TryFrom<&PublicKey> for Multikey {
+impl TryFrom<&ssh_key::PublicKey> for Multikey {
     type Error = Error;
 
-    fn try_from(sshkey: &PublicKey) -> Result<Self, Self::Error> {
+    fn try_from(sshkey: &ssh_key::PublicKey) -> Result<Self, Self::Error> {
+        use ssh_key::Algorithm::*;
         match sshkey.algorithm() {
-            Algorithm::Ed25519 => {
+            Ed25519 => {
                 let key = Codec::Ed25519Pub;
                 let codec_values = Vec::default();
                 let comment = sshkey.comment().to_string();
                 let mut data_units = Vec::with_capacity(1);
                 data_units.push(match sshkey.key_data() {
-                    KeyData::Ed25519(e) => DataUnit::from(&e.0[..]),
+                    ssh_key::public::KeyData::Ed25519(e) => DataUnit::from(&e.0[..]),
                     _ => return Err(Error::UnsupportedAlgorithm(sshkey.algorithm().to_string())),
                 });
 
@@ -279,18 +280,21 @@ impl TryFrom<&PublicKey> for Multikey {
     }
 }
 
-impl TryFrom<&PrivateKey> for Multikey {
+impl TryFrom<&ssh_key::PrivateKey> for Multikey {
     type Error = Error;
 
-    fn try_from(sshkey: &PrivateKey) -> Result<Self, Self::Error> {
+    fn try_from(sshkey: &ssh_key::PrivateKey) -> Result<Self, Self::Error> {
+        use ssh_key::Algorithm::*;
         match sshkey.algorithm() {
-            Algorithm::Ed25519 => {
+            Ed25519 => {
                 let key = Codec::Ed25519Priv;
                 let codec_values = Vec::default();
                 let comment = sshkey.comment().to_string();
                 let mut data_units = Vec::with_capacity(1);
                 data_units.push(match sshkey.key_data() {
-                    KeypairData::Ed25519(e) => DataUnit::from(&e.private.to_bytes()[..]),
+                    ssh_key::private::KeypairData::Ed25519(e) => {
+                        DataUnit::from(&e.private.to_bytes()[..])
+                    }
                     _ => return Err(Error::UnsupportedAlgorithm(sshkey.algorithm().to_string())),
                 });
 
@@ -309,10 +313,6 @@ impl TryFrom<&PrivateKey> for Multikey {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ssh_key::{
-        private::{Ed25519Keypair, Ed25519PrivateKey, KeypairData},
-        public::{Ed25519PublicKey, KeyData},
-    };
 
     #[test]
     fn test_simple() {
@@ -326,26 +326,62 @@ mod tests {
 
     #[test]
     fn test_from_ssh_pubkey() {
-        let private_key = Ed25519PrivateKey::random(&mut rand::rngs::OsRng);
-        let public_key = Ed25519PublicKey::from(private_key);
-        let key_data = KeyData::Ed25519(public_key);
-        let sshkey = PublicKey::new(key_data, "test key");
+        let private_key = ssh_key::private::Ed25519PrivateKey::random(&mut rand::rngs::OsRng);
+        let public_key = ssh_key::public::Ed25519PublicKey::from(private_key);
+        let key_data = ssh_key::public::KeyData::Ed25519(public_key);
+        let sshkey = ssh_key::PublicKey::new(key_data, "test key");
         let mk = Multikey::try_from(&sshkey).unwrap();
 
-        assert_eq!(mk.key, Codec::Ed25519Pub);
+        assert_eq!(mk.key, Codec::Ed25518Pub);
         assert_eq!(mk.comment, "test key".to_string());
         assert_eq!(mk.data_units[0].len(), 32);
     }
 
     #[test]
     fn test_from_ssh_privkey() {
-        let private = Ed25519PrivateKey::random(&mut rand::rngs::OsRng);
-        let public = Ed25519PublicKey::from(&private);
-        let key_pair = Ed25519Keypair { public, private };
-        let key_data = KeypairData::Ed25519(key_pair);
-        let sshkey = PrivateKey::new(key_data, "test key").unwrap();
+        let private = ssh_key::private::Ed25519PrivateKey::random(&mut rand::rngs::OsRng);
+        let public = ssh_key::public::Ed25519PublicKey::from(&private);
+        let key_pair = ssh_key::private::Ed25519Keypair { public, private };
+        let key_data = ssh_key::private::KeypairData::Ed25519(key_pair);
+        let sshkey = ssh_key::PrivateKey::new(key_data, "test key").unwrap();
         let mk = Multikey::try_from(&sshkey).unwrap();
 
+        assert_eq!(mk.key, Codec::Ed25519Priv);
+        assert_eq!(mk.comment, "test key".to_string());
+        assert_eq!(mk.data_units[0].len(), 32);
+    }
+
+    #[test]
+    fn test_pub_from_string() {
+        let s = "zVQSE3Uy36Cdu74JC1HUDUwD99bRDrTwjigpLKNJQw6qY9rvuYDwRX1Bw3J7u8G5x".to_string();
+        let mk = Multikey::try_from(s).unwrap();
+        assert_eq!(mk.key, Codec::Ed25519Pub);
+        assert_eq!(mk.comment, "test key".to_string());
+        assert_eq!(mk.data_units[0].len(), 32);
+    }
+
+    #[test]
+    fn test_priv_from_string() {
+        let s = "zVCYiR6NKxkdxfCJgowFTECSr6Tm7Fdq5PMJWyXfkQRJ4upc9PKvRUNk9kSkAvj3f".to_string();
+        let mk = Multikey::try_from(s).unwrap();
+        assert_eq!(mk.key, Codec::Ed25519Priv);
+        assert_eq!(mk.comment, "test key".to_string());
+        assert_eq!(mk.data_units[0].len(), 32);
+    }
+
+    #[test]
+    fn test_pub_from_vec() {
+        let b = hex::decode("3aed0100020874657374206b657920c3bc684b917a04898bd80608873910247f6278bc64dc05a0463aa470e7bda169").unwrap();
+        let mk = Multikey::try_from(b).unwrap();
+        assert_eq!(mk.key, Codec::Ed25519Pub);
+        assert_eq!(mk.comment, "test key".to_string());
+        assert_eq!(mk.data_units[0].len(), 32);
+    }
+
+    #[test]
+    fn test_priv_from_vec() {
+        let b = hex::decode("3a802600020874657374206b65792062c31d5c05250d9c6f02ba7bb4f0b4a0adf79481ba183039a7d015e2fe7c8b66").unwrap();
+        let mk = Multikey::try_from(b).unwrap();
         assert_eq!(mk.key, Codec::Ed25519Priv);
         assert_eq!(mk.comment, "test key".to_string());
         assert_eq!(mk.data_units[0].len(), 32);
