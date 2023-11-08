@@ -56,6 +56,10 @@ pub enum Error {
     #[error("Decryption error: {0}")]
     DecryptionFailed(String),
 
+    /// Fingerprint error
+    #[error("Fingerprint error: {0}")]
+    FingerprintFailed(String),
+
     /// Kdf error
     #[error("Pbkdf error: {0}")]
     PbkdfFailed(String),

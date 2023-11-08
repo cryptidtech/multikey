@@ -5,6 +5,7 @@ use crate::{
     Result,
 };
 use multicodec::codec::Codec;
+use multihash::mh::{self, Multihash};
 use multiutil::{EncodeInto, TryDecodeFrom};
 use sec1::point::EncodedPoint;
 use ssh_key::public::{EcdsaPublicKey, Ed25519PublicKey, KeyData};
@@ -70,6 +71,15 @@ impl Multikey {
     /// is this multikey encrypted?
     pub fn is_encrypted(&self) -> bool {
         self.encrypted != 0u8
+    }
+
+    /// get the figureprint of the key
+    pub fn fingerprint(&self, codec: Codec) -> Result<Multihash> {
+        if self.is_encrypted() {
+            anyhow::bail!(Error::FingerprintFailed("key is encrypted".to_string()));
+        }
+        let key = self.data_units.get(KEY).ok_or(Error::MissingKey)?;
+        Ok(mh::Builder::new(codec).try_build(key)?)
     }
 
     /// encrypt this multikey
