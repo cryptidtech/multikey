@@ -418,22 +418,6 @@ impl TryFrom<&ssh_key::PublicKey> for Multikey {
     }
 }
 
-/*
-pub struct Multikey {
-    /// The key codec
-    pub codec: Codec,
-
-    /// if the key is encrypted
-    pub encrypted: u8,
-
-    /// The codec-specific values
-    pub codec_values: Vec<u128>,
-
-    /// The data units for the key
-    pub data_units: Vec<DataUnit>,
-}
-*/
-
 impl TryInto<ssh_key::PublicKey> for Multikey {
     type Error = Error;
 
@@ -728,28 +712,6 @@ mod tests {
 
     #[test]
     fn test_pub_from_string() {
-        /*
-        let key = hex::decode("0a497dbeb4e1c683d0814dd9c0251526c39ee14fb9e340853197beaf6db96233")
-            .unwrap();
-        let mut data_units = Vec::with_capacity(2);
-        let du = DataUnit::new(&"test key");
-        data_units.push(du);
-        data_units.push(DataUnit::new(&key));
-
-        let mk = Multikey {
-            codec: Codec::Ed25519Pub,
-            encrypted: 0u8,
-            codec_values: Vec::default(),
-            data_units,
-        };
-
-        let data = mk.encode_into();
-        let s = multibase::encode(multibase::Base::Base16Lower, data.clone());
-        println!("len: {}", s.len());
-        println!("{}", s);
-        println!("{:x?}", data.as_slice());
-        */
-
         let s = "z3ANSLZwn9GEMLp4EmVzgC5UJSowrdWRcX8KLQXm6b87FXia5Aco478QTgxsPp6oRVU".to_string();
         let mk = Multikey::try_from(s).unwrap();
         assert_eq!(mk.codec, Codec::Ed25519Pub);
@@ -760,28 +722,6 @@ mod tests {
 
     #[test]
     fn test_priv_from_string() {
-        /*
-        let key = hex::decode("40d42aa5fd7cd7322a194af532dc9cff594c56c487f84cfa589143d7d8ede996")
-            .unwrap();
-        let mut data_units = Vec::with_capacity(2);
-        let du = DataUnit::new(&"test key");
-        data_units.push(du);
-        data_units.push(DataUnit::new(&key));
-
-        let mk = Multikey {
-            codec: Codec::Ed25519Priv,
-            encrypted: 0u8,
-            codec_values: Vec::default(),
-            data_units,
-        };
-
-        let data = mk.encode_into();
-        let s = multibase::encode(multibase::Base::Base16Lower, data.clone());
-        println!("len: {}", s.len());
-        println!("{}", s);
-        println!("{:x?}", data.as_slice());
-        */
-
         let s = "z39TxyoL2wjMbcVuaxduRsCaDfQzcgdMScps6kcGLUct6pF4wKvLQz3Jh5S4FkubWmT".to_string();
         let mk = Multikey::try_from(s).unwrap();
         assert_eq!(mk.codec, Codec::Ed25519Priv);

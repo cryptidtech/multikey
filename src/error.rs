@@ -4,33 +4,21 @@ use thiserror::Error;
 #[derive(Debug, Error)]
 #[non_exhaustive]
 pub enum Error {
-    /// Formatting error
-    #[error(transparent)]
-    Fmt(#[from] std::fmt::Error),
-
-    /// A multibase conversion error
+    /// Multibase conversion error
     #[error(transparent)]
     Multibase(#[from] multibase::Error),
 
-    /// A multicodec decoding error
+    /// Multicodec decoding error
     #[error(transparent)]
     Multicodec(#[from] multicodec::error::Error),
 
-    /// Error decoding utf8
-    #[error(transparent)]
-    Utf8Error(#[from] std::string::FromUtf8Error),
-
-    /// Bcrypt PBKDF error
-    #[error(transparent)]
-    BcryptPbkdfError(bcrypt_pbkdf::Error),
-
     /// Multiutil error
     #[error(transparent)]
-    MultiUtilError(#[from] multiutil::Error),
+    Multiutil(#[from] multiutil::Error),
 
     /// Sec1 encoding error
     #[error(transparent)]
-    Sec1Error(#[from] sec1::Error),
+    Sec1(#[from] sec1::Error),
 
     /// TryFromSlice error
     #[error(transparent)]
@@ -54,11 +42,11 @@ pub enum Error {
 
     /// Encryption key error
     #[error("Encryption key error: {0}")]
-    KeyError(String),
+    Key(String),
 
     /// Nonce error
     #[error("Nonce error: {0}")]
-    NonceError(String),
+    Nonce(String),
 
     /// Encryption error
     #[error("Encryption error: {0}")]

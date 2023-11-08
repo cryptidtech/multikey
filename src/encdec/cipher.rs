@@ -29,15 +29,15 @@ impl EncDec for Cipher {
         match self {
             Cipher::ChaCha20Poly1305 { nonce, msg } => {
                 if nonce.len() != chacha20poly1305::NONCEBYTES {
-                    anyhow::bail!(Error::NonceError("invalid length".to_string()));
+                    anyhow::bail!(Error::Nonce("invalid length".to_string()));
                 }
                 if key.len() != chacha20poly1305::KEYBYTES {
-                    anyhow::bail!(Error::KeyError("invalid length".to_string()));
+                    anyhow::bail!(Error::Key("invalid length".to_string()));
                 }
                 let n = chacha20poly1305::Nonce::from_slice(nonce.as_slice())
-                    .ok_or(Error::NonceError("from_slice failure".to_string()))?;
+                    .ok_or(Error::Nonce("from_slice failure".to_string()))?;
                 let k = chacha20poly1305::Key::from_slice(key.as_slice())
-                    .ok_or(Error::KeyError("from_slice failure".to_string()))?;
+                    .ok_or(Error::Key("from_slice failure".to_string()))?;
                 let dec = chacha20poly1305::open(msg.as_slice(), None, &n, &k).map_err(|_| {
                     Error::DecryptionFailed("chacha20poly1305 decryption failed".to_string())
                 })?;
@@ -59,15 +59,15 @@ impl EncDec for Cipher {
         match self {
             Cipher::ChaCha20Poly1305 { nonce, msg } => {
                 if nonce.len() != chacha20poly1305::NONCEBYTES {
-                    anyhow::bail!(Error::NonceError("invalid length".to_string()));
+                    anyhow::bail!(Error::Nonce("invalid length".to_string()));
                 }
                 if key.len() != chacha20poly1305::KEYBYTES {
-                    anyhow::bail!(Error::KeyError("invalid length".to_string()));
+                    anyhow::bail!(Error::Key("invalid length".to_string()));
                 }
                 let n = chacha20poly1305::Nonce::from_slice(nonce.as_slice())
-                    .ok_or(Error::NonceError("from_slice failure".to_string()))?;
+                    .ok_or(Error::Nonce("from_slice failure".to_string()))?;
                 let k = chacha20poly1305::Key::from_slice(key.as_slice())
-                    .ok_or(Error::KeyError("from_slice failure".to_string()))?;
+                    .ok_or(Error::Key("from_slice failure".to_string()))?;
                 let enc = chacha20poly1305::seal(msg.as_slice(), None, &n, &k);
 
                 mk.codec_values.push(Codec::Chacha20Poly1305.into());
