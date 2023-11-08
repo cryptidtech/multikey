@@ -4,14 +4,23 @@ A rust implementation of a
 [multiformats](https://github.com/multiformats/multiformats) cryptographic key
 library.
 
+## Current Status
+
+This version of the mulikey specification supports both public key and secret
+key cryptography keys. For public key cryptography, it supports public and
+private keys for Ed25519, and Ecdsa using the Nist P256, Nist P384, and Nist
+P521 curves. Adding more will require adding sigils to multicodec for the
+codecs. For secret key cryptography, it supports AES128, AES192, AES256,
+ChaCha-128, and ChaCha-256 keys.
+
 ## Multikey v1 Format 
 
 ```
-multikey      count of codec-        count of key         variable number
-sigil        specific varuints        data units        of data unit octets 
-|                  |                      |                     |
-v                  v                      v                  /-----\
-0x3a <varuint> <varuint> N(<varuint>) <varuint> N(<varuint> N(OCTET))
+multikey   encrypted   count of codec-         count of key         variable number
+sigil       boolean   specific varuints         data units        of data unit octets 
+|                 \           |                      |                     |
+v                  v          v                      v                  /-----\
+0x3a <varuint> <varuint> <varuint> N(<varuint>) <varuint> N(<varuint> N(OCTET))
          ^                \---------/            \-- ^ -------------/
          |                    |                      |            |
       key codec        variable number        count of data   variable number
@@ -52,24 +61,32 @@ salt value. Here is how the multikey is encoded:
 ```
 0x3a                -- varuint, multikey sigil 
 0x1300              -- varuint, Ed25519 private key codec 
-0x03                -- varuint, 3 codec-specific varuint values 
-    0xa5            -- varuint, ChaCha20-Poly1305 symmetric key encryption
+0x01                -- varuint, boolean if it is encrypted or not
+0x06                -- varuint, 6 codec-specific varuint values 
     0xd00d          -- varuint, Bcrypt PBKDF key derivation function
         0x0a        -- varuint, Bcrypt PBKDF rounds
-0x03                -- varuint, 3 data units
+        0x03        -- varuint, data unit index of salt
+    0xa5            -- varuint, ChaCha20-Poly1305 symmetric key encryption
+        0x01        -- varuint, data unit index of nonce
+        0x02        -- varuint, data unit index of ciphertext
+0x04                -- varuint, 4 data units
+    0x09            -- varuint, 9 bytes of comment data
+        "multikey!" -- 9 octets of utf-8 comment data
     0x20            -- varuint, 32 octets of Bcrypt PBKDF salt data
         [32 octets] -- Bcrypt PBKDF salt data
-    0x0c            -- varuint, 12 octets of the ChaCha20-Poly1305 nonce
-        [12 octets] -- ChaCha20-Poly1305 nonce bytes
+    0x08            -- varuint, 12 octets of the ChaCha20-Poly1305 nonce
+        [8 octets]  -- ChaCha20-Poly1305 nonce bytes
     0x30            -- varuint, 48 octets of ciphertext
         [48 octets] -- ciphertext
 ```
 
 In this example the encoding starts off with the multikey sigil (`0x3a`)
 followed by the varuint codec value for an Ed25519 private key (`0x1300`).
-There are three codec-specific values (`0x03`) specifying the key encryption
-algorithm is ChaCha20-Poly1305 (`0xa5`) and that the key is derived from a
+There are six codec-specific values (`0x06`) specifying the key encryption
+algorithm as ChaCha20-Poly1305 (`0xa5`) and that the key is derived from a
 passphrase using the Bcrypt PBKDF algorithm (`0xd00d`) with 10 rounds (`0x0a`).
+The extra values are for specifying the indices in the list of data units for 
+the various values needed for the key derivation and the decryption.
 
 The encoding has three data units (`0x03`), the Bcrypt PBKDF salt, the
 ChaCha20-Poly1305 nonce and the ciphertext itself. With all of this data, any

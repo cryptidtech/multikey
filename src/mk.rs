@@ -1,167 +1,223 @@
-use crate::error::Error;
-use multicodec::{codec::Codec, mc::MultiCodec};
+use crate::{
+    du::DataUnit,
+    encdec::{EncDec, Kdf},
+    error::Error,
+    Result,
+};
+use multicodec::codec::Codec;
+use multiutil::{EncodeInto, TryDecodeFrom};
 use std::fmt;
-use unsigned_varint::{decode, encode};
 
 /// the multicodec sigil for multikey
 pub const SIGIL: Codec = Codec::Multikey;
 
-/// The data unit in a multikey
-#[derive(Clone, Debug, PartialEq)]
-pub struct DataUnit(Vec<u8>);
-
-/// Give access to the inner slice
-impl AsRef<[u8]> for DataUnit {
-    fn as_ref(&self) -> &[u8] {
-        self.0.as_ref()
-    }
-}
-
-impl DataUnit {
-    /// returns the number of bytes in the data unit
-    pub fn len(&self) -> usize {
-        self.0.len()
-    }
-
-    /// encodes the data unit into a Vec<u8>
-    pub fn to_vec(&self) -> Vec<u8> {
-        let mut v = Vec::default();
-        v.append(&mut encode_usize_to_vec(self.0.len()));
-        v.extend_from_slice(self.0.as_slice());
-        v
-    }
-
-    /// tries to decode a DataUnit from a slice
-    pub fn decode_from_slice(bytes: &[u8]) -> Result<(Self, &[u8]), Error> {
-        let mut ptr = bytes;
-        let (len, p) = decode_usize_from_slice(ptr)?;
-        ptr = p;
-        let mut v = Vec::with_capacity(len);
-        if len > 0 {
-            v.extend_from_slice(&ptr[..len]);
-        }
-        Ok((Self(v), &ptr[len..]))
-    }
-}
-
-impl From<&[u8]> for DataUnit {
-    fn from(bytes: &[u8]) -> Self {
-        let mut v = Vec::with_capacity(bytes.len());
-        v.extend_from_slice(bytes);
-        Self(v)
-    }
-}
+// the index of the comment data unit
+const COMMENT: usize = 0;
 
 /// The main multikey structure
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct Multikey {
     /// The key codec
-    pub key: Codec,
+    pub codec: Codec,
+
+    /// if the key is encrypted
+    pub encrypted: u8,
 
     /// The codec-specific values
     pub codec_values: Vec<u128>,
-
-    /// The comment associated with the key
-    pub comment: String,
 
     /// The data units for the key
     pub data_units: Vec<DataUnit>,
 }
 
 impl Multikey {
-    /// encodes the multikey to a Vec<u8>
-    pub fn to_vec(&self) -> Vec<u8> {
-        let mut v = Vec::default();
+    /// whether or not this is a secret key
+    pub fn is_secret_key(&self) -> bool {
+        use multicodec::codec::Codec::*;
+        match self.codec {
+            Ed25519Priv | P256Priv | P384Priv | P521Priv | Secp256K1Priv | X25519Priv | RsaPriv
+            | Aes128 | Aes192 | Aes256 | Chacha128 | Chacha256 => true,
+            _ => false,
+        }
+    }
 
-        // start with the sigil
-        v.append(&mut SIGIL.to_vec());
+    /// wether or not this is a public key
+    pub fn is_public_key(&self) -> bool {
+        use multicodec::codec::Codec::*;
+        match self.codec {
+            Ed25519Pub | Ed448Pub | P256Pub | P384Pub | P521Pub | Secp256K1Pub | Bls12381G1Pub
+            | Bls12381G2Pub | Bls12381G1G2Pub | X25519Pub | X448Pub | Sr25519Pub | RsaPub => true,
+            _ => false,
+        }
+    }
 
-        // add the key codec
-        v.extend_from_slice(self.key.to_vec().as_slice());
-
-        // add in the number of codec-specific varuints
-        v.append(&mut encode_usize_to_vec(self.codec_values.len()));
-
-        // add in the codec-specific values
-        for cv in &self.codec_values {
-            v.append(&mut encode_u128_to_vec(*cv));
+    /// get the key comment
+    pub fn comment(&self) -> Result<String> {
+        if self.data_units.len() < 1 {
+            anyhow::bail!(Error::MissingComment);
         }
 
-        // add in the number of data data units
-        v.append(&mut encode_usize_to_vec(self.data_units.len() + 1));
+        // try to decode the first data unit as a comment
+        Ok(String::from_utf8(self.data_units[COMMENT].as_ref().into())?)
+    }
 
-        // add in the comment as a data unit
-        v.append(&mut encode_usize_to_vec(self.comment.as_bytes().len()));
-        v.extend_from_slice(self.comment.as_bytes());
+    /// is this multikey encrypted?
+    pub fn is_encrypted(&self) -> bool {
+        self.encrypted != 0u8
+    }
 
-        // add in the data units
-        for du in &self.data_units {
-            v.append(&mut du.to_vec());
+    /// encrypt this multikey
+    pub fn encrypt(
+        &mut self,
+        kdf: impl Kdf,
+        cipher: impl EncDec,
+        passphrase: impl AsRef<[u8]>,
+    ) -> Result<()> {
+        if !self.is_secret_key() {
+            anyhow::bail!(Error::EncryptionFailed("must be a secret key".to_string()));
         }
 
-        v
+        if self.is_encrypted() {
+            anyhow::bail!(Error::EncryptionFailed("already encrypted".to_string()));
+        }
+
+        if self.data_units.len() < 1 {
+            anyhow::bail!(Error::EncryptionFailed("too few data units".to_string()));
+        }
+
+        // clear out the codec-specific values and remove all data units except
+        // the comment
+        self.codec_values.clear();
+        self.data_units.truncate(1);
+
+        // make a temporary copy
+        let mut mk = self.clone();
+
+        // derive the key and store the parameters and data units in the multikey
+        let key = kdf.derive(&mut mk, passphrase)?;
+
+        // encrypt the multikey and store the parameters and data units in the multikey
+        cipher.encrypt(&mut mk, key)?;
+
+        // overwrite self
+        *self = mk;
+
+        Ok(())
+    }
+
+    /// decrypt this multikey
+    pub fn decrypt(
+        &mut self,
+        kdf: impl Kdf,
+        cipher: impl EncDec,
+        passphrase: impl AsRef<[u8]>,
+    ) -> Result<()> {
+        if !self.is_secret_key() {
+            anyhow::bail!(Error::DecryptionFailed("must be a secret key".to_string()));
+        }
+
+        if !self.is_encrypted() {
+            anyhow::bail!(Error::DecryptionFailed("not encrypted".to_string()));
+        }
+
+        if self.data_units.len() < 3 {
+            anyhow::bail!(Error::DecryptionFailed("too few data units".to_string()));
+        }
+
+        // clear out the codec-specific values and remove all data units except
+        // the comment
+        self.codec_values.clear();
+        self.data_units.truncate(1);
+
+        // derive the key
+        let key = {
+            // make a temporary copy
+            let mut mk = self.clone();
+
+            // derive the key and store the parameters and data units in teh multikey
+            kdf.derive(&mut mk, passphrase)?
+        };
+
+        // make another temporary copy
+        let mut mk = self.clone();
+
+        // decrypt the multikey
+        cipher.decrypt(&mut mk, key)?;
+
+        //overwrite self
+        *self = mk;
+
+        Ok(())
     }
 }
 
 impl fmt::Display for Multikey {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         writeln!(f, "{}:", SIGIL)?;
-        writeln!(f, "\tKey Codec: {}", self.key)?;
+        writeln!(f, "\tKey Codec: {}", self.codec)?;
+        writeln!(f, "\tEncrypted: {}", self.is_encrypted())?;
         writeln!(f, "\tCodec-specific Values: [")?;
         for cv in &self.codec_values {
             writeln!(f, "\t\t0x{:x}", cv)?;
         }
         writeln!(f, "\t]")?;
+        writeln!(
+            f,
+            "\tComment: {}",
+            self.comment().map_err(|_| std::fmt::Error)?
+        )?;
         writeln!(f, "\tData Units: [")?;
-        for du in &self.data_units {
-            writeln!(f, "\t\t({}): {}", du.len(), hex::encode(du.as_ref()))?;
+        if self.data_units.len() > 1 {
+            for du in &self.data_units[1..] {
+                writeln!(f, "\t\t({}): {}", du.len(), hex::encode(du.as_ref()))?;
+            }
         }
         writeln!(f, "\t]")
     }
 }
 
-fn encode_u128_to_vec(n: u128) -> Vec<u8> {
-    let mut buf = encode::u128_buffer();
-    encode::u128(n, &mut buf);
-
-    let mut v = Vec::default();
-    for b in buf {
-        v.push(b);
-        if decode::is_last(b) {
-            break;
-        }
+impl Into<Vec<u8>> for Multikey {
+    fn into(self) -> Vec<u8> {
+        self.encode_into()
     }
-
-    v
 }
 
-fn decode_u128_from_slice(b: &[u8]) -> Result<(u128, &[u8]), Error> {
-    Ok(decode::u128(b).map_err(|e| Error::UnsignedVarintDecode(e))?)
-}
+impl EncodeInto for Multikey {
+    fn encode_into(&self) -> Vec<u8> {
+        // start with the sigil
+        let mut v = SIGIL.encode_into();
 
-fn decode_usize_from_slice(b: &[u8]) -> Result<(usize, &[u8]), Error> {
-    Ok(decode::usize(b).map_err(|e| Error::UnsignedVarintDecode(e))?)
-}
+        // add the key codec
+        v.append(&mut self.codec.encode_into());
 
-fn encode_usize_to_vec(n: usize) -> Vec<u8> {
-    let mut buf = encode::usize_buffer();
-    encode::usize(n, &mut buf);
+        // add the encrypted flag
+        v.append(&mut self.encrypted.encode_into());
 
-    let mut v = Vec::default();
-    for b in buf {
-        v.push(b);
-        if decode::is_last(b) {
-            break;
+        // add in the number of codec-specific varuints
+        v.append(&mut self.codec_values.len().encode_into());
+
+        // add in the codec-specific values
+        for cv in &self.codec_values {
+            v.append(&mut cv.encode_into());
         }
-    }
 
-    v
+        // add in the number of data units
+        v.append(&mut self.data_units.len().encode_into());
+
+        // add in the data units
+        for du in &self.data_units {
+            let mut duv = du.encode_into();
+            v.append(&mut duv);
+        }
+
+        v
+    }
 }
 
 impl TryFrom<String> for Multikey {
     type Error = Error;
 
-    fn try_from(s: String) -> Result<Self, Self::Error> {
+    fn try_from(s: String) -> std::result::Result<Self, Self::Error> {
         Self::try_from(s.as_str())
     }
 }
@@ -169,9 +225,12 @@ impl TryFrom<String> for Multikey {
 impl TryFrom<&str> for Multikey {
     type Error = Error;
 
-    fn try_from(s: &str) -> Result<Self, Self::Error> {
+    fn try_from(s: &str) -> std::result::Result<Self, Self::Error> {
         match multibase::decode(s) {
-            Ok((_, v)) => Self::try_from(v.as_slice()),
+            Ok((_, v)) => {
+                let (mk, _) = Self::try_decode_from(v.as_slice())?;
+                Ok(mk)
+            }
             Err(e) => Err(Error::Multibase(e)),
         }
     }
@@ -180,98 +239,177 @@ impl TryFrom<&str> for Multikey {
 impl TryFrom<Vec<u8>> for Multikey {
     type Error = Error;
 
-    fn try_from(v: Vec<u8>) -> Result<Self, Self::Error> {
-        Self::try_from(v.as_slice())
+    fn try_from(v: Vec<u8>) -> std::result::Result<Self, Self::Error> {
+        let (mk, _) = Self::try_decode_from(v.as_slice())?;
+        Ok(mk)
     }
 }
 
-impl TryFrom<&[u8]> for Multikey {
+impl<'a> TryDecodeFrom<'a> for Multikey {
     type Error = Error;
 
-    fn try_from(data: &[u8]) -> Result<Self, Self::Error> {
-        // ensure the first varuint is the sigil
-        let sigil = MultiCodec::try_from(data)?;
-        if sigil.codec() != SIGIL {
+    fn try_decode_from(bytes: &'a [u8]) -> std::result::Result<(Self, &'a [u8]), Self::Error> {
+        // ensure the first varuint is the multikey sigil
+        let (sigil, ptr) = Codec::try_decode_from(bytes)?;
+        if sigil != SIGIL {
             return Err(Error::MissingSigil);
         }
-        let mut ptr = sigil.data();
 
-        // decode the key codec varuint
-        let key = MultiCodec::try_from(ptr)?;
-        ptr = key.data();
+        // decode the key codec
+        let (codec, ptr) = Codec::try_decode_from(ptr)?;
+
+        // decode the encrypted flag
+        let (encrypted, ptr) = u8::try_decode_from(ptr)?;
 
         // decode the number of codec-specific values
-        let (num_cv, p) = decode_usize_from_slice(ptr)?;
-        ptr = p;
+        let (num_cv, ptr) = usize::try_decode_from(ptr)?;
 
-        let codec_values = match num_cv {
-            0 => Vec::default(),
+        let (codec_values, ptr) = match num_cv {
+            0 => (Vec::default(), ptr),
             _ => {
                 // decode the codec-specific values
                 let mut codec_values = Vec::with_capacity(num_cv);
+                let mut p = ptr;
                 for _ in 0..num_cv {
-                    let (cv, p) = decode_u128_from_slice(ptr)?;
-                    ptr = p;
+                    let (cv, ptr) = u128::try_decode_from(p)?;
                     codec_values.push(cv);
+                    p = ptr;
                 }
-                codec_values
+                (codec_values, p)
             }
         };
 
         // decode the number of data units
-        let (num_du, p) = decode_usize_from_slice(ptr)?;
-        ptr = p;
+        let (num_du, ptr) = usize::try_decode_from(ptr)?;
 
-        let (comment, data_units) = match num_du {
-            0 => (String::default(), Vec::default()),
+        let (data_units, ptr) = match num_du {
+            0 => (Vec::default(), ptr),
             _ => {
-                // decode the first data unit as the comment
-                let (c_len, p) = decode_usize_from_slice(ptr)?;
-                ptr = p;
-                let comment = String::from_utf8(ptr[..c_len].to_vec())?;
-                ptr = &ptr[c_len..];
-
                 // decode the data units
-                let mut data_units = Vec::with_capacity(num_du - 1);
-                for _ in 0..num_du - 1 {
-                    let (cv, p) = DataUnit::decode_from_slice(ptr)?;
-                    ptr = p;
-                    data_units.push(cv);
+                let mut data_units = Vec::with_capacity(num_du);
+                let mut p = ptr;
+                for _ in 0..num_du {
+                    let (du, ptr) = DataUnit::try_decode_from(p)?;
+                    data_units.push(du);
+                    p = ptr;
                 }
-
-                (comment, data_units)
+                (data_units, p)
             }
         };
 
-        Ok(Self {
-            key: key.codec(),
-            codec_values,
-            comment,
-            data_units,
-        })
+        Ok((
+            Self {
+                codec,
+                encrypted,
+                codec_values,
+                data_units,
+            },
+            ptr,
+        ))
     }
 }
 
 impl TryFrom<&ssh_key::PublicKey> for Multikey {
     type Error = Error;
 
-    fn try_from(sshkey: &ssh_key::PublicKey) -> Result<Self, Self::Error> {
+    fn try_from(sshkey: &ssh_key::PublicKey) -> std::result::Result<Self, Self::Error> {
         use ssh_key::Algorithm::*;
         match sshkey.algorithm() {
-            Ed25519 => {
-                let key = Codec::Ed25519Pub;
+            Ecdsa { curve } => {
+                use ssh_key::EcdsaCurve::*;
+
+                let encrypted = 0u8;
+                let mut data_units = Vec::with_capacity(2);
+                data_units.push(DataUnit::new(&sshkey.comment().as_bytes()));
+
+                let codec = match curve {
+                    NistP256 => {
+                        data_units.push(match sshkey.key_data() {
+                            ssh_key::public::KeyData::Ecdsa(e) => {
+                                use ssh_key::public::EcdsaPublicKey::*;
+                                match e {
+                                    NistP256(point) => DataUnit::new(&point.as_bytes()),
+                                    _ => {
+                                        return Err(Error::UnsupportedAlgorithm(
+                                            sshkey.algorithm().to_string(),
+                                        ))
+                                    }
+                                }
+                            }
+                            _ => {
+                                return Err(Error::UnsupportedAlgorithm(
+                                    sshkey.algorithm().to_string(),
+                                ))
+                            }
+                        });
+                        Codec::P256Pub
+                    }
+                    NistP384 => {
+                        data_units.push(match sshkey.key_data() {
+                            ssh_key::public::KeyData::Ecdsa(e) => {
+                                use ssh_key::public::EcdsaPublicKey::*;
+                                match e {
+                                    NistP384(point) => DataUnit::new(&point.as_bytes()),
+                                    _ => {
+                                        return Err(Error::UnsupportedAlgorithm(
+                                            sshkey.algorithm().to_string(),
+                                        ))
+                                    }
+                                }
+                            }
+                            _ => {
+                                return Err(Error::UnsupportedAlgorithm(
+                                    sshkey.algorithm().to_string(),
+                                ))
+                            }
+                        });
+                        Codec::P384Pub
+                    }
+                    NistP521 => {
+                        data_units.push(match sshkey.key_data() {
+                            ssh_key::public::KeyData::Ecdsa(e) => {
+                                use ssh_key::public::EcdsaPublicKey::*;
+                                match e {
+                                    NistP521(point) => DataUnit::new(&point.as_bytes()),
+                                    _ => {
+                                        return Err(Error::UnsupportedAlgorithm(
+                                            sshkey.algorithm().to_string(),
+                                        ))
+                                    }
+                                }
+                            }
+                            _ => {
+                                return Err(Error::UnsupportedAlgorithm(
+                                    sshkey.algorithm().to_string(),
+                                ))
+                            }
+                        });
+                        Codec::P521Pub
+                    }
+                };
                 let codec_values = Vec::default();
-                let comment = sshkey.comment().to_string();
-                let mut data_units = Vec::with_capacity(1);
+                Ok(Self {
+                    codec,
+                    encrypted,
+                    codec_values,
+                    data_units,
+                })
+            }
+            Ed25519 => {
+                let codec = Codec::Ed25519Pub;
+                let encrypted = 0u8;
+                let codec_values = Vec::default();
+                let mut data_units = Vec::with_capacity(2);
+                data_units.push(DataUnit::new(&sshkey.comment().as_bytes()));
                 data_units.push(match sshkey.key_data() {
-                    ssh_key::public::KeyData::Ed25519(e) => DataUnit::from(&e.0[..]),
+                    ssh_key::public::KeyData::Ed25519(e) => DataUnit::new(&e.0),
                     _ => return Err(Error::UnsupportedAlgorithm(sshkey.algorithm().to_string())),
                 });
 
                 Ok(Self {
-                    key,
+                    codec,
+                    encrypted,
                     codec_values,
-                    comment,
                     data_units,
                 })
             }
@@ -283,25 +421,112 @@ impl TryFrom<&ssh_key::PublicKey> for Multikey {
 impl TryFrom<&ssh_key::PrivateKey> for Multikey {
     type Error = Error;
 
-    fn try_from(sshkey: &ssh_key::PrivateKey) -> Result<Self, Self::Error> {
+    fn try_from(sshkey: &ssh_key::PrivateKey) -> std::result::Result<Self, Self::Error> {
         use ssh_key::Algorithm::*;
         match sshkey.algorithm() {
-            Ed25519 => {
-                let key = Codec::Ed25519Priv;
+            Ecdsa { curve } => {
+                use ssh_key::EcdsaCurve::*;
+
+                let encrypted = 0u8;
+                let mut data_units = Vec::with_capacity(2);
+                data_units.push(DataUnit::new(&sshkey.comment().as_bytes()));
+
+                let codec = match curve {
+                    NistP256 => {
+                        data_units.push(match sshkey.key_data() {
+                            ssh_key::private::KeypairData::Ecdsa(e) => {
+                                use ssh_key::private::EcdsaKeypair::*;
+                                match e {
+                                    NistP256 { public: _, private } => {
+                                        DataUnit::new(&private.as_slice())
+                                    }
+                                    _ => {
+                                        return Err(Error::UnsupportedAlgorithm(
+                                            sshkey.algorithm().to_string(),
+                                        ))
+                                    }
+                                }
+                            }
+                            _ => {
+                                return Err(Error::UnsupportedAlgorithm(
+                                    sshkey.algorithm().to_string(),
+                                ))
+                            }
+                        });
+                        Codec::P256Priv
+                    }
+                    NistP384 => {
+                        data_units.push(match sshkey.key_data() {
+                            ssh_key::private::KeypairData::Ecdsa(e) => {
+                                use ssh_key::private::EcdsaKeypair::*;
+                                match e {
+                                    NistP384 { public: _, private } => {
+                                        DataUnit::new(&private.as_slice())
+                                    }
+                                    _ => {
+                                        return Err(Error::UnsupportedAlgorithm(
+                                            sshkey.algorithm().to_string(),
+                                        ))
+                                    }
+                                }
+                            }
+                            _ => {
+                                return Err(Error::UnsupportedAlgorithm(
+                                    sshkey.algorithm().to_string(),
+                                ))
+                            }
+                        });
+                        Codec::P384Priv
+                    }
+                    NistP521 => {
+                        data_units.push(match sshkey.key_data() {
+                            ssh_key::private::KeypairData::Ecdsa(e) => {
+                                use ssh_key::private::EcdsaKeypair::*;
+                                match e {
+                                    NistP521 { public: _, private } => {
+                                        DataUnit::new(&private.as_slice())
+                                    }
+                                    _ => {
+                                        return Err(Error::UnsupportedAlgorithm(
+                                            sshkey.algorithm().to_string(),
+                                        ))
+                                    }
+                                }
+                            }
+                            _ => {
+                                return Err(Error::UnsupportedAlgorithm(
+                                    sshkey.algorithm().to_string(),
+                                ))
+                            }
+                        });
+                        Codec::P521Priv
+                    }
+                };
                 let codec_values = Vec::default();
-                let comment = sshkey.comment().to_string();
-                let mut data_units = Vec::with_capacity(1);
+                Ok(Self {
+                    codec,
+                    encrypted,
+                    codec_values,
+                    data_units,
+                })
+            }
+            Ed25519 => {
+                let codec = Codec::Ed25519Priv;
+                let encrypted = 0u8;
+                let codec_values = Vec::default();
+                let mut data_units = Vec::with_capacity(2);
+                data_units.push(DataUnit::new(&sshkey.comment().as_bytes()));
                 data_units.push(match sshkey.key_data() {
                     ssh_key::private::KeypairData::Ed25519(e) => {
-                        DataUnit::from(&e.private.to_bytes()[..])
+                        DataUnit::new(&e.private.to_bytes())
                     }
                     _ => return Err(Error::UnsupportedAlgorithm(sshkey.algorithm().to_string())),
                 });
 
                 Ok(Self {
-                    key,
+                    codec,
+                    encrypted,
                     codec_values,
-                    comment,
                     data_units,
                 })
             }
@@ -313,15 +538,79 @@ impl TryFrom<&ssh_key::PrivateKey> for Multikey {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::encdec::{cipher, pbkdf};
 
     #[test]
     fn test_simple() {
         let mk = Multikey {
-            key: Codec::Ed25519Pub,
+            codec: Codec::Ed25519Pub,
             ..Default::default()
         };
-        let v = mk.to_vec();
+        let v = mk.encode_into();
         assert_eq!(6, v.len());
+    }
+
+    #[test]
+    fn test_encryption_roundtrip() {
+        let private = ssh_key::private::Ed25519PrivateKey::random(&mut rand::rngs::OsRng);
+        let public = ssh_key::public::Ed25519PublicKey::from(&private);
+        let key_pair = ssh_key::private::Ed25519Keypair { public, private };
+        let key_data = ssh_key::private::KeypairData::Ed25519(key_pair);
+        let sshkey = ssh_key::PrivateKey::new(key_data, "test key").unwrap();
+        let mk1 = Multikey::try_from(&sshkey).unwrap();
+
+        assert_eq!(false, mk1.is_encrypted());
+        assert_eq!(mk1.codec_values.len(), 0);
+        assert_eq!(mk1.data_units.len(), 2);
+
+        let mut rng = rand::rngs::OsRng::default();
+
+        let mk2 = {
+            let kdf = pbkdf::Builder::new(Codec::BcryptPbkdf)
+                .with_random_salt(&mut rng)
+                .with_rounds(10)
+                .try_build()
+                .unwrap();
+
+            let cipher = cipher::Builder::new(Codec::Chacha20Poly1305)
+                .from_multikey(&mk1) // init the msg with the unencrypted key
+                .with_random_nonce(&mut rng)
+                .try_build()
+                .unwrap();
+
+            let mut mk2 = mk1.clone();
+            mk2.encrypt(kdf, cipher, "for great justice, move every zig!")
+                .unwrap();
+            mk2
+        };
+
+        assert_eq!(true, mk2.is_encrypted());
+        assert_eq!(mk2.codec_values.len(), 6);
+        assert_eq!(mk2.data_units.len(), 4);
+
+        let mk3 = {
+            let kdf = pbkdf::Builder::default()
+                .from_multikey(&mk2)
+                .try_build()
+                .unwrap();
+
+            let cipher = cipher::Builder::default()
+                .from_multikey(&mk2)
+                .try_build()
+                .unwrap();
+
+            let mut mk3 = mk2.clone();
+            mk3.decrypt(kdf, cipher, "for great justice, move every zig!")
+                .unwrap();
+            mk3
+        };
+
+        assert_eq!(false, mk3.is_encrypted());
+        assert_eq!(mk3.codec_values.len(), 0);
+        assert_eq!(mk3.data_units.len(), 2);
+
+        // ensure the round trip worked
+        assert_eq!(mk1, mk3);
     }
 
     #[test]
@@ -332,9 +621,10 @@ mod tests {
         let sshkey = ssh_key::PublicKey::new(key_data, "test key");
         let mk = Multikey::try_from(&sshkey).unwrap();
 
-        assert_eq!(mk.key, Codec::Ed25518Pub);
-        assert_eq!(mk.comment, "test key".to_string());
-        assert_eq!(mk.data_units[0].len(), 32);
+        assert_eq!(mk.codec, Codec::Ed25519Pub);
+        assert_eq!(mk.comment().unwrap(), "test key".to_string());
+        assert_eq!(mk.data_units.len(), 2);
+        assert_eq!(mk.data_units[1].len(), 32);
     }
 
     #[test]
@@ -346,44 +636,93 @@ mod tests {
         let sshkey = ssh_key::PrivateKey::new(key_data, "test key").unwrap();
         let mk = Multikey::try_from(&sshkey).unwrap();
 
-        assert_eq!(mk.key, Codec::Ed25519Priv);
-        assert_eq!(mk.comment, "test key".to_string());
-        assert_eq!(mk.data_units[0].len(), 32);
+        assert_eq!(mk.codec, Codec::Ed25519Priv);
+        assert_eq!(mk.comment().unwrap(), "test key".to_string());
+        assert_eq!(mk.data_units.len(), 2);
+        assert_eq!(mk.data_units[1].len(), 32);
     }
 
     #[test]
     fn test_pub_from_string() {
-        let s = "zVQSE3Uy36Cdu74JC1HUDUwD99bRDrTwjigpLKNJQw6qY9rvuYDwRX1Bw3J7u8G5x".to_string();
+        /*
+        let key = hex::decode("0a497dbeb4e1c683d0814dd9c0251526c39ee14fb9e340853197beaf6db96233")
+            .unwrap();
+        let mut data_units = Vec::with_capacity(2);
+        let du = DataUnit::new(&"test key");
+        data_units.push(du);
+        data_units.push(DataUnit::new(&key));
+
+        let mk = Multikey {
+            codec: Codec::Ed25519Pub,
+            encrypted: 0u8,
+            codec_values: Vec::default(),
+            data_units,
+        };
+
+        let data = mk.encode_into();
+        let s = multibase::encode(multibase::Base::Base16Lower, data.clone());
+        println!("len: {}", s.len());
+        println!("{}", s);
+        println!("{:x?}", data.as_slice());
+        */
+
+        let s = "z3ANSLZwn9GEMLp4EmVzgC5UJSowrdWRcX8KLQXm6b87FXia5Aco478QTgxsPp6oRVU".to_string();
         let mk = Multikey::try_from(s).unwrap();
-        assert_eq!(mk.key, Codec::Ed25519Pub);
-        assert_eq!(mk.comment, "test key".to_string());
-        assert_eq!(mk.data_units[0].len(), 32);
+        assert_eq!(mk.codec, Codec::Ed25519Pub);
+        assert_eq!(mk.comment().unwrap(), "test key".to_string());
+        assert_eq!(mk.data_units.len(), 2);
+        assert_eq!(mk.data_units[1].len(), 32);
     }
 
     #[test]
     fn test_priv_from_string() {
-        let s = "zVCYiR6NKxkdxfCJgowFTECSr6Tm7Fdq5PMJWyXfkQRJ4upc9PKvRUNk9kSkAvj3f".to_string();
+        /*
+        let key = hex::decode("40d42aa5fd7cd7322a194af532dc9cff594c56c487f84cfa589143d7d8ede996")
+            .unwrap();
+        let mut data_units = Vec::with_capacity(2);
+        let du = DataUnit::new(&"test key");
+        data_units.push(du);
+        data_units.push(DataUnit::new(&key));
+
+        let mk = Multikey {
+            codec: Codec::Ed25519Priv,
+            encrypted: 0u8,
+            codec_values: Vec::default(),
+            data_units,
+        };
+
+        let data = mk.encode_into();
+        let s = multibase::encode(multibase::Base::Base16Lower, data.clone());
+        println!("len: {}", s.len());
+        println!("{}", s);
+        println!("{:x?}", data.as_slice());
+        */
+
+        let s = "z39TxyoL2wjMbcVuaxduRsCaDfQzcgdMScps6kcGLUct6pF4wKvLQz3Jh5S4FkubWmT".to_string();
         let mk = Multikey::try_from(s).unwrap();
-        assert_eq!(mk.key, Codec::Ed25519Priv);
-        assert_eq!(mk.comment, "test key".to_string());
-        assert_eq!(mk.data_units[0].len(), 32);
+        assert_eq!(mk.codec, Codec::Ed25519Priv);
+        assert_eq!(mk.comment().unwrap(), "test key".to_string());
+        assert_eq!(mk.data_units.len(), 2);
+        assert_eq!(mk.data_units[1].len(), 32);
     }
 
     #[test]
     fn test_pub_from_vec() {
-        let b = hex::decode("3aed0100020874657374206b657920c3bc684b917a04898bd80608873910247f6278bc64dc05a0463aa470e7bda169").unwrap();
+        let b = hex::decode("3aed010000020874657374206b6579200a497dbeb4e1c683d0814dd9c0251526c39ee14fb9e340853197beaf6db96233").unwrap();
         let mk = Multikey::try_from(b).unwrap();
-        assert_eq!(mk.key, Codec::Ed25519Pub);
-        assert_eq!(mk.comment, "test key".to_string());
-        assert_eq!(mk.data_units[0].len(), 32);
+        assert_eq!(mk.codec, Codec::Ed25519Pub);
+        assert_eq!(mk.comment().unwrap(), "test key".to_string());
+        assert_eq!(mk.data_units.len(), 2);
+        assert_eq!(mk.data_units[1].len(), 32);
     }
 
     #[test]
     fn test_priv_from_vec() {
-        let b = hex::decode("3a802600020874657374206b65792062c31d5c05250d9c6f02ba7bb4f0b4a0adf79481ba183039a7d015e2fe7c8b66").unwrap();
+        let b = hex::decode("3a80260000020874657374206b6579200a497dbeb4e1c683d0814dd9c0251526c39ee14fb9e340853197beaf6db96233").unwrap();
         let mk = Multikey::try_from(b).unwrap();
-        assert_eq!(mk.key, Codec::Ed25519Priv);
-        assert_eq!(mk.comment, "test key".to_string());
-        assert_eq!(mk.data_units[0].len(), 32);
+        assert_eq!(mk.codec, Codec::Ed25519Priv);
+        assert_eq!(mk.comment().unwrap(), "test key".to_string());
+        assert_eq!(mk.data_units.len(), 2);
+        assert_eq!(mk.data_units[1].len(), 32);
     }
 }

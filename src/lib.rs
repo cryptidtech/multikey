@@ -10,6 +10,12 @@
 /// The result type for this crate
 pub type Result<T> = anyhow::Result<T>;
 
+/// data unit for storing key data
+pub mod du;
+
+/// encryption/decryption trait
+pub mod encdec;
+
 /// Errors produced by this library
 pub mod error;
 
@@ -21,6 +27,8 @@ pub mod prelude {
     use super::*;
 
     pub use super::Result;
+    pub use du::*;
+    pub use encdec::*;
     pub use error::*;
     pub use mk::*;
 }
