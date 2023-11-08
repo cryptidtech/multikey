@@ -1,6 +1,6 @@
 [package]
 name = "multikey"
-version = "0.2.0"
+version = "0.2.1"
 edition = "2021"
 authors = ["Dave Huseby <dwh@linuxprogrammer.org>"]
 description = "Multikey self-describing cryptographic key data"
@@ -16,8 +16,10 @@ multibase = "0.9"
 multicodec = { version = "0.2", git = "https://github.com/cryptidtech/rust-multicodec.git" }
 multiutil = { version = "0.1", git = "https://github.com/cryptidtech/multiutil.git" }
 rand = "0.8"
+sec1 = "0.7"
 sodiumoxide = "0.2"
 ssh-key = { version = "0.6.2", features = ["alloc", "crypto", "ed25519"]}
 thiserror = "1.0"
+typenum = "1.17"
 unsigned-varint = { version = "0.8", features = ["std"]}
 zeroize = "1.6"

@@ -6,13 +6,19 @@ use crate::{
 };
 use multicodec::codec::Codec;
 use multiutil::{EncodeInto, TryDecodeFrom};
+use sec1::point::EncodedPoint;
+use ssh_key::public::{EcdsaPublicKey, Ed25519PublicKey, KeyData};
 use std::fmt;
+use typenum::consts::*;
 
 /// the multicodec sigil for multikey
 pub const SIGIL: Codec = Codec::Multikey;
 
 // the index of the comment data unit
 const COMMENT: usize = 0;
+
+// the index of the public key data unit
+const KEY: usize = 1;
 
 /// The main multikey structure
 #[derive(Clone, Debug, Default, PartialEq)]
@@ -173,12 +179,6 @@ impl fmt::Display for Multikey {
             }
         }
         writeln!(f, "\t]")
-    }
-}
-
-impl Into<Vec<u8>> for Multikey {
-    fn into(self) -> Vec<u8> {
-        self.encode_into()
     }
 }
 
@@ -414,6 +414,90 @@ impl TryFrom<&ssh_key::PublicKey> for Multikey {
                 })
             }
             _ => Err(Error::UnsupportedAlgorithm(sshkey.algorithm().to_string())),
+        }
+    }
+}
+
+/*
+pub struct Multikey {
+    /// The key codec
+    pub codec: Codec,
+
+    /// if the key is encrypted
+    pub encrypted: u8,
+
+    /// The codec-specific values
+    pub codec_values: Vec<u128>,
+
+    /// The data units for the key
+    pub data_units: Vec<DataUnit>,
+}
+*/
+
+impl TryInto<ssh_key::PublicKey> for Multikey {
+    type Error = Error;
+
+    fn try_into(self) -> std::result::Result<ssh_key::PublicKey, Self::Error> {
+        //use ssh_key::Algorithm::*;
+
+        match self.codec {
+            Codec::P256Pub => {
+                let key_data = match self.data_units.get(KEY) {
+                    Some(du) => {
+                        let point = EncodedPoint::<U32>::from_bytes(du)?;
+                        let nistp256 = EcdsaPublicKey::NistP256(point);
+                        KeyData::Ecdsa(nistp256)
+                    }
+                    _ => return Err(Error::MissingKey),
+                };
+                Ok(ssh_key::PublicKey::new(
+                    key_data,
+                    self.comment().map_err(|_| Error::MissingComment)?,
+                ))
+            }
+            Codec::P384Pub => {
+                let key_data = match self.data_units.get(KEY) {
+                    Some(du) => {
+                        let point = EncodedPoint::<U48>::from_bytes(du)?;
+                        let nistp384 = EcdsaPublicKey::NistP384(point);
+                        KeyData::Ecdsa(nistp384)
+                    }
+                    _ => return Err(Error::MissingKey),
+                };
+                Ok(ssh_key::PublicKey::new(
+                    key_data,
+                    self.comment().map_err(|_| Error::MissingComment)?,
+                ))
+            }
+            Codec::P521Pub => {
+                let key_data = match self.data_units.get(KEY) {
+                    Some(du) => {
+                        let point = EncodedPoint::<U66>::from_bytes(du)?;
+                        let nistp521 = EcdsaPublicKey::NistP521(point);
+                        KeyData::Ecdsa(nistp521)
+                    }
+                    _ => return Err(Error::MissingKey),
+                };
+                Ok(ssh_key::PublicKey::new(
+                    key_data,
+                    self.comment().map_err(|_| Error::MissingComment)?,
+                ))
+            }
+            Codec::Ed25519Pub => {
+                let key_data = match self.data_units.get(KEY) {
+                    Some(du) => {
+                        let point: [u8; 32] = du.as_ref()[..32].try_into()?;
+                        let ed25519 = Ed25519PublicKey(point);
+                        KeyData::Ed25519(ed25519)
+                    }
+                    _ => return Err(Error::MissingKey),
+                };
+                Ok(ssh_key::PublicKey::new(
+                    key_data,
+                    self.comment().map_err(|_| Error::MissingComment)?,
+                ))
+            }
+            _ => Err(Error::MissingKey),
         }
     }
 }

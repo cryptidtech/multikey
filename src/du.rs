@@ -24,12 +24,6 @@ impl AsRef<[u8]> for DataUnit {
     }
 }
 
-impl Into<Vec<u8>> for DataUnit {
-    fn into(self) -> Vec<u8> {
-        self.encode_into()
-    }
-}
-
 impl EncodeInto for DataUnit {
     fn encode_into(&self) -> Vec<u8> {
         let mut v = self.0.len().encode_into();
@@ -38,6 +32,7 @@ impl EncodeInto for DataUnit {
     }
 }
 
+/// Try to decode from a Vec
 impl TryFrom<Vec<u8>> for DataUnit {
     type Error = Error;
 

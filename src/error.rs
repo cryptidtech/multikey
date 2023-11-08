@@ -28,6 +28,14 @@ pub enum Error {
     #[error(transparent)]
     MultiUtilError(#[from] multiutil::Error),
 
+    /// Sec1 encoding error
+    #[error(transparent)]
+    Sec1Error(#[from] sec1::Error),
+
+    /// TryFromSlice error
+    #[error(transparent)]
+    TryFromSlice(#[from] std::array::TryFromSliceError),
+
     /// Missing sigil 0x34
     #[error("Missing Multikey sigil")]
     MissingSigil,
@@ -71,4 +79,8 @@ pub enum Error {
     /// Comment error
     #[error("Comment data unit missing")]
     MissingComment,
+
+    /// Key error
+    #[error("Key data unit missing")]
+    MissingKey,
 }
