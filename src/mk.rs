@@ -12,7 +12,7 @@ use multiutil::{EncodeInto, TryDecodeFrom};
 use rand::{CryptoRng, RngCore};
 use sec1::point::EncodedPoint;
 use ssh_key::{
-    private::{EcdsaKeypair, Ed25519Keypair, KeypairData},
+    private::{EcdsaKeypair, Ed25519Keypair, Ed25519PrivateKey, KeypairData},
     public::{EcdsaPublicKey, Ed25519PublicKey, KeyData},
     EcdsaCurve, PrivateKey, PublicKey,
 };
@@ -656,6 +656,44 @@ impl TryFrom<&PrivateKey> for Multikey {
                     })?)
             }
             _ => Err(Error::UnsupportedAlgorithm(sshkey.algorithm().to_string())),
+        }
+    }
+}
+
+impl TryInto<PrivateKey> for Multikey {
+    type Error = Error;
+
+    fn try_into(self) -> std::result::Result<PrivateKey, Self::Error> {
+        match self.codec {
+            Codec::Ed25519Priv => {
+                let du = self.data_units.get(KEY).ok_or(Error::MissingKey)?;
+                let bytes: [u8; ed25519::SECRET_KEY_LENGTH] =
+                    du.as_ref()[..ed25519::SECRET_KEY_LENGTH].try_into()?;
+                let private_key = Ed25519PrivateKey::from_bytes(&bytes);
+                let keypair = Ed25519Keypair::from(private_key);
+                let keypair_data = KeypairData::Ed25519(keypair);
+                Ok(PrivateKey::new(
+                    keypair_data,
+                    self.comment().map_err(|_| Error::MissingComment)?,
+                )
+                .map_err(|_| {
+                    Error::PrivateKeyFailure("failed to convert private key".to_string())
+                })?)
+            }
+            /*
+            Codec::P256Priv => {}
+            Codec::P384Priv => {}
+            Codec::P521Priv => {}
+            Codec::Secp256K1Priv => {}
+            Codec::X25519Priv => {}
+            Codec::RsaPriv => {}
+            Codec::Aes128 => {}
+            Codec::Aes192 => {}
+            Codec::Aes256 => {}
+            Codec::Chacha128 => {}
+            Codec::Chacha256 => {}
+            */
+            _ => Err(Error::UnsupportedCodec(self.codec)),
         }
     }
 }
