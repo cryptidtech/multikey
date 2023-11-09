@@ -40,6 +40,10 @@ pub enum Error {
     #[error("Unsupported encryption algorithm: {0}")]
     UnsupportedEncryption(multicodec::codec::Codec),
 
+    /// Error with the key codec
+    #[error("Unsupported key codec: {0}")]
+    UnsupportedCodec(multicodec::codec::Codec),
+
     /// Encryption key error
     #[error("Encryption key error: {0}")]
     Key(String),
@@ -75,4 +79,12 @@ pub enum Error {
     /// Key error
     #[error("Key data unit missing")]
     MissingKey,
+
+    /// Public key operation failure
+    #[error("Public key error: {0}")]
+    PublicKeyFailure(String),
+
+    /// Private key operation failure
+    #[error("Public key error: {0}")]
+    PrivateKeyFailure(String),
 }

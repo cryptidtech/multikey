@@ -1,6 +1,6 @@
 [package]
 name = "multikey"
-version = "0.2.4"
+version = "0.2.5"
 edition = "2021"
 authors = ["Dave Huseby <dwh@linuxprogrammer.org>"]
 description = "Multikey self-describing cryptographic key data"
@@ -11,6 +11,7 @@ license = "Apache-2.0"
 [dependencies]
 anyhow = "1.0"
 bcrypt-pbkdf = "0.10"
+ed25519-dalek = { version = "2.0", features = ["rand_core"] }
 hex = "0.4"
 multibase = "0.9"
 multicodec = { version = "0.2", git = "https://github.com/cryptidtech/rust-multicodec.git" }

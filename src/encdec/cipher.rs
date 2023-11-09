@@ -42,8 +42,8 @@ impl EncDec for Cipher {
                     Error::DecryptionFailed("chacha20poly1305 decryption failed".to_string())
                 })?;
 
-                mk.data_units.push(DataUnit::new(&dec));
-                mk.encrypted = 0u8;
+                mk.data_units_mut().push(DataUnit::new(&dec));
+                mk.set_encrypted(false);
 
                 Ok(())
             }
@@ -70,12 +70,14 @@ impl EncDec for Cipher {
                     .ok_or(Error::Key("from_slice failure".to_string()))?;
                 let enc = chacha20poly1305::seal(msg.as_slice(), None, &n, &k);
 
-                mk.codec_values.push(Codec::Chacha20Poly1305.into());
-                mk.codec_values.push(mk.data_units.len() as u128); // index of the nonce data unit
-                mk.data_units.push(DataUnit::new(nonce));
-                mk.codec_values.push(mk.data_units.len() as u128); // index of the nonce data unit
-                mk.data_units.push(DataUnit::new(&enc));
-                mk.encrypted = 1u8;
+                mk.codec_values_mut().push(Codec::Chacha20Poly1305.into());
+                let len = mk.data_units().len();
+                mk.codec_values_mut().push(len as u128); // index of nonce
+                mk.data_units_mut().push(DataUnit::new(nonce));
+                let len = mk.data_units().len();
+                mk.codec_values_mut().push(len as u128); // index of ciphertext
+                mk.data_units_mut().push(DataUnit::new(&enc));
+                mk.set_encrypted(true);
 
                 Ok(())
             }
@@ -123,11 +125,14 @@ impl Builder {
 
     /// create a new builder from an existing multikey
     pub fn from_multikey(mut self, mk: &Multikey) -> Self {
+        let dus = mk.data_units();
         if mk.is_encrypted() {
+            let cvs = mk.codec_values();
+
             // go through the codec values looking for an encryption codec and its
             // cipher parameters
-            'values: for i in 0..mk.codec_values.len() {
-                let codec = match Codec::try_from(mk.codec_values[i]) {
+            'values: for i in 0..cvs.len() {
+                let codec = match Codec::try_from(cvs[i]) {
                     Ok(c) => c,
                     Err(_) => continue 'values,
                 };
@@ -137,15 +142,15 @@ impl Builder {
                         self.codec = codec;
 
                         // i + 1 is the index of the nonce
-                        if let Some(nonce_idx) = mk.codec_values.get(i + 1) {
-                            if let Some(nonce) = mk.data_units.get(*nonce_idx as usize) {
+                        if let Some(nonce_idx) = cvs.get(i + 1) {
+                            if let Some(nonce) = dus.get(*nonce_idx as usize) {
                                 self.nonce = Some(nonce.as_ref().to_vec());
                             }
                         }
 
                         // i + 2 is the index of the encrypted key
-                        if let Some(msg_idx) = mk.codec_values.get(i + 2) {
-                            if let Some(msg) = mk.data_units.get(*msg_idx as usize) {
+                        if let Some(msg_idx) = cvs.get(i + 2) {
+                            if let Some(msg) = dus.get(*msg_idx as usize) {
                                 self.msg = Some(msg.as_ref().to_vec());
                             }
                         }
@@ -156,7 +161,7 @@ impl Builder {
         } else {
             // for unencrypted multikeys we just need to initialize the msg with
             // the unencrypted key data unit
-            if let Some(msg) = mk.data_units.get(KEY) {
+            if let Some(msg) = dus.get(KEY) {
                 self.msg = Some(msg.as_ref().to_vec());
             }
         }

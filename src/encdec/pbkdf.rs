@@ -25,10 +25,11 @@ impl Kdf for Pbkdf {
             Pbkdf::Bcrypt { rounds, salt } => {
                 let mut out = [0u8; 32];
                 bcrypt_pbkdf::bcrypt_pbkdf(passphrase, salt, *rounds, &mut out)?;
-                mk.codec_values.push(Codec::BcryptPbkdf.into());
-                mk.codec_values.push(*rounds as u128); // rounds
-                mk.codec_values.push(mk.data_units.len() as u128); // index of the salt data unit
-                mk.data_units.push(DataUnit::new(salt));
+                mk.codec_values_mut().push(Codec::BcryptPbkdf.into());
+                mk.codec_values_mut().push(*rounds as u128); // rounds
+                let len = mk.data_units().len();
+                mk.codec_values_mut().push(len as u128); // index of the salt data unit
+                mk.data_units_mut().push(DataUnit::new(salt));
                 Ok(out.to_vec().into())
             }
         }
@@ -72,10 +73,12 @@ impl Builder {
     /// initialize the builder from the Multikey
     pub fn from_multikey(mut self, mk: &Multikey) -> Self {
         if mk.is_encrypted() {
+            let cvs = mk.codec_values();
+            let dus = mk.data_units();
             // go through the codec values looking for an encryption codec and its
             // cipher parameters
-            'values: for i in 0..mk.codec_values.len() {
-                let codec = match Codec::try_from(mk.codec_values[i]) {
+            'values: for i in 0..cvs.len() {
+                let codec = match Codec::try_from(cvs[i]) {
                     Ok(c) => c,
                     Err(_) => continue 'values,
                 };
@@ -85,13 +88,13 @@ impl Builder {
                         self.codec = codec;
 
                         // i + 1 is the number of rounds
-                        if let Some(rounds) = mk.codec_values.get(i + 1) {
+                        if let Some(rounds) = cvs.get(i + 1) {
                             self.rounds = Some(*rounds as u32);
                         }
 
                         // i + 2 is the index of the salt data
-                        if let Some(salt_idx) = mk.codec_values.get(i + 2) {
-                            if let Some(salt) = mk.data_units.get(*salt_idx as usize) {
+                        if let Some(salt_idx) = cvs.get(i + 2) {
+                            if let Some(salt) = dus.get(*salt_idx as usize) {
                                 self.salt = Some(salt.as_ref().to_vec());
                             }
                         }
@@ -158,10 +161,7 @@ mod tests {
             )
             .try_build()
             .unwrap();
-        let mut mk = Multikey {
-            codec: Codec::Ed25519Pub,
-            ..Default::default()
-        };
+        let mut mk = Multikey::default();
         let key = kdf
             .derive(&mut mk, "for great justice, move every zig!")
             .unwrap();
@@ -169,7 +169,7 @@ mod tests {
             hex::encode(&key),
             "776d0ddd8c1a58b387117719b0630502cb195210a1f6b08b0865ae07f043ed6b"
         );
-        assert_eq!(mk.codec_values.len(), 3);
-        assert_eq!(mk.data_units.len(), 1);
+        assert_eq!(mk.codec_values().len(), 3);
+        assert_eq!(mk.data_units().len(), 2);
     }
 }
