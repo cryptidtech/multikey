@@ -35,7 +35,7 @@ pub struct Multikey {
     codec: Codec,
 
     /// The multibase encoding
-    encoding: Base,
+    string_encoding: Base,
 
     /// if the key is encrypted
     encrypted: u8,
@@ -54,13 +54,13 @@ impl Multikey {
     }
 
     /// return the multibase encoding
-    pub fn encoding(&self) -> Base {
-        self.encoding
+    pub fn string_encoding(&self) -> Base {
+        self.string_encoding
     }
 
     /// set the encoding
-    pub fn set_encoding(&mut self, encoding: Base) {
-        self.encoding = encoding;
+    pub fn set_string_encoding(&mut self, encoding: Base) {
+        self.string_encoding = encoding;
     }
 
     /// return an immutable reference to the codec_values
@@ -169,7 +169,7 @@ impl Multikey {
                 let private_key = ed25519::SigningKey::from_bytes(&bytes);
                 let public_key = private_key.verifying_key();
                 Builder::new(Codec::Ed25519Pub)
-                    .with_encoding(self.encoding)
+                    .with_string_encoding(self.string_encoding)
                     .with_comment(&self.comment().unwrap_or_default())
                     .with_key_bytes(public_key.as_bytes())
                     .try_build()?
@@ -189,7 +189,7 @@ impl Multikey {
             */
             _ => anyhow::bail!(Error::UnsupportedCodec(self.codec)),
         };
-        mk.set_encoding(self.encoding);
+        mk.set_string_encoding(self.string_encoding);
         Ok(mk)
     }
 
@@ -320,7 +320,7 @@ impl Default for Multikey {
 
         Multikey {
             codec: Codec::Ed25519Pub,
-            encoding: Base::Base16Lower,
+            string_encoding: Base::Base16Lower,
             encrypted: 0u8,
             codec_values: Vec::default(),
             data_units,
@@ -363,7 +363,7 @@ impl EncodeInto for Multikey {
 impl ToString for Multikey {
     fn to_string(&self) -> String {
         let v = self.encode_into();
-        multibase::encode(self.encoding, &v)
+        multibase::encode(self.string_encoding, &v)
     }
 }
 
@@ -382,7 +382,7 @@ impl TryFrom<&str> for Multikey {
         match multibase::decode(s) {
             Ok((base, v)) => {
                 let (mut mk, _) = Self::try_decode_from(v.as_slice())?;
-                mk.encoding = base;
+                mk.string_encoding = base;
                 Ok(mk)
             }
             Err(e) => Err(Error::Multibase(e)),
@@ -454,7 +454,7 @@ impl<'a> TryDecodeFrom<'a> for Multikey {
         Ok((
             Self {
                 codec,
-                encoding: Base::Base16Lower,
+                string_encoding: Base::Base16Lower,
                 encrypted,
                 codec_values,
                 data_units,
@@ -503,7 +503,7 @@ impl TryFrom<&PublicKey> for Multikey {
                 };
                 Ok(Builder::new(codec)
                     .with_comment(sshkey.comment())
-                    .with_encoding(Base::Base16Lower)
+                    .with_string_encoding(Base::Base16Lower)
                     .with_key_bytes(&bytes)
                     .try_build()
                     .map_err(|_| {
@@ -517,7 +517,7 @@ impl TryFrom<&PublicKey> for Multikey {
                 };
                 Ok(Builder::new(Codec::Ed25519Pub)
                     .with_comment(sshkey.comment())
-                    .with_encoding(Base::Base16Lower)
+                    .with_string_encoding(Base::Base16Lower)
                     .with_key_bytes(&bytes)
                     .try_build()
                     .map_err(|_| {
@@ -634,7 +634,7 @@ impl TryFrom<&PrivateKey> for Multikey {
                 };
                 Ok(Builder::new(codec)
                     .with_comment(sshkey.comment())
-                    .with_encoding(Base::Base16Lower)
+                    .with_string_encoding(Base::Base16Lower)
                     .with_key_bytes(&bytes)
                     .try_build()
                     .map_err(|_| {
@@ -648,7 +648,7 @@ impl TryFrom<&PrivateKey> for Multikey {
                 };
                 Ok(Builder::new(Codec::Ed25519Priv)
                     .with_comment(sshkey.comment())
-                    .with_encoding(Base::Base16Lower)
+                    .with_string_encoding(Base::Base16Lower)
                     .with_key_bytes(&bytes)
                     .try_build()
                     .map_err(|_| {
@@ -665,7 +665,7 @@ impl TryFrom<&PrivateKey> for Multikey {
 #[derive(Clone, Debug, Default)]
 pub struct Builder {
     codec: Codec,
-    encoding: Option<Base>,
+    string_encoding: Option<Base>,
     comment: Option<String>,
     key_bytes: Option<Vec<u8>>,
 }
@@ -675,15 +675,13 @@ impl Builder {
     pub fn new(codec: Codec) -> Self {
         Builder {
             codec,
-            encoding: None,
-            comment: None,
-            key_bytes: None,
+            ..Default::default()
         }
     }
 
     /// add an encoding
-    pub fn with_encoding(mut self, base: Base) -> Self {
-        self.encoding = Some(base);
+    pub fn with_string_encoding(mut self, base: Base) -> Self {
+        self.string_encoding = Some(base);
         self
     }
 
@@ -709,7 +707,7 @@ impl Builder {
 
         Ok(Multikey {
             codec: self.codec,
-            encoding: Base::Base16Lower,
+            string_encoding: Base::Base16Lower,
             encrypted: 0u8,
             codec_values: Vec::default(),
             data_units,
@@ -755,7 +753,7 @@ impl Builder {
             */
             _ => anyhow::bail!(Error::UnsupportedCodec(self.codec)),
         };
-        mk.set_encoding(self.encoding.unwrap_or(Base::Base16Lower));
+        mk.set_string_encoding(self.string_encoding.unwrap_or(Base::Base16Lower));
         Ok(mk)
     }
 }
@@ -837,7 +835,7 @@ mod tests {
         let mut rng = rand::rngs::OsRng::default();
         let pk = Builder::new(Codec::Ed25519Priv)
             .with_comment("test key")
-            .with_encoding(Base::Base16Lower)
+            .with_string_encoding(Base::Base16Lower)
             .try_build_random(&mut rng)
             .unwrap();
 
@@ -869,7 +867,7 @@ mod tests {
         let s = "z3ANSLZwn9GEMLp4EmVzgC5jjqPe35pxqcU5m4UE5wQ55gtXgozs5KQxjRZ8XGHZqDD".to_string();
         let mk = Multikey::try_from(s).unwrap();
         assert_eq!(mk.codec, Codec::Ed25519Pub);
-        assert_eq!(mk.encoding(), Base::Base58Btc);
+        assert_eq!(mk.string_encoding(), Base::Base58Btc);
         assert_eq!(mk.comment().unwrap(), "test key".to_string());
         assert_eq!(mk.data_units.len(), 2);
         assert_eq!(mk.data_units[1].len(), 32);
@@ -881,7 +879,7 @@ mod tests {
             .to_string();
         let mk = Multikey::try_from(s).unwrap();
         assert_eq!(mk.codec, Codec::Ed25519Priv);
-        assert_eq!(mk.encoding(), Base::Base32Lower);
+        assert_eq!(mk.string_encoding(), Base::Base32Lower);
         assert_eq!(mk.comment().unwrap(), "test key".to_string());
         assert_eq!(mk.data_units.len(), 2);
         assert_eq!(mk.data_units[1].len(), 32);
@@ -892,7 +890,7 @@ mod tests {
         let b = hex::decode("3aed010000020874657374206b6579201cfed95aa8daba98d1a7116722bf6b3ae4c035c941c36066e246b01585e834a8").unwrap();
         let mk = Multikey::try_from(b).unwrap();
         assert_eq!(mk.codec, Codec::Ed25519Pub);
-        assert_eq!(mk.encoding(), Base::Base16Lower);
+        assert_eq!(mk.string_encoding(), Base::Base16Lower);
         assert_eq!(mk.comment().unwrap(), "test key".to_string());
         assert_eq!(mk.data_units.len(), 2);
         assert_eq!(mk.data_units[1].len(), 32);
@@ -903,7 +901,7 @@ mod tests {
         let b = hex::decode("3a80260000020874657374206b657920fa87fe4afd223a2560972ea13f9d6223ad955f10a334b1fb6ef5ce6bff4d9dbd").unwrap();
         let mk = Multikey::try_from(b).unwrap();
         assert_eq!(mk.codec, Codec::Ed25519Priv);
-        assert_eq!(mk.encoding(), Base::Base16Lower);
+        assert_eq!(mk.string_encoding(), Base::Base16Lower);
         assert_eq!(mk.comment().unwrap(), "test key".to_string());
         assert_eq!(mk.data_units.len(), 2);
         assert_eq!(mk.data_units[1].len(), 32);
