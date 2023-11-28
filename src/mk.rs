@@ -17,6 +17,7 @@ use ssh_key::{
     EcdsaCurve, PrivateKey, PublicKey,
 };
 use typenum::consts::*;
+use varsig::Varsig;
 use zeroize::Zeroizing;
 
 /// the multicodec sigil for multikey
@@ -134,7 +135,7 @@ impl Multikey {
         Ok(mh::Builder::new(codec).try_build_encoded(key)?)
     }
 
-    /// encrypt this multikey
+    /// encrypt the given multikey
     pub fn encrypt(
         mut mk: &mut Multikey,
         kdf: impl Kdf,
@@ -167,7 +168,7 @@ impl Multikey {
         Ok(())
     }
 
-    /// decrypt this multikey
+    /// decrypt the given multikey
     pub fn decrypt(
         mut mk: &mut Multikey,
         kdf: impl Kdf,
@@ -204,6 +205,41 @@ impl Multikey {
         cipher.decrypt(&mut mk, key)?;
 
         Ok(())
+    }
+
+    /// verity a Varsig with this multkey
+    pub fn verify(&self, vs: &Varsig, msg: &[u8]) -> Result<(), Error> {
+        if self.is_private_key() {
+            self.to_public_key()?.verify(vs, msg)
+        } else {
+            // self is a public key
+            if self.codec() != vs.codec() {
+                return Err(Error::Key(format!(
+                    "key codec {} != sig codec {}",
+                    self.codec(),
+                    vs.codec()
+                )));
+            }
+
+            match self.codec() {
+                Codec::Ed25519Pub => {
+                    let vk = match self.data.get(KEY) {
+                        Some(du) => {
+                            let bytes: [u8; 32] = du.as_slice()[..32].try_into()?;
+                            ed25519::VerifyingKey::from_bytes(&bytes)?
+                        }
+                        _ => return Err(Error::MissingKey),
+                    };
+                    let signature = {
+                        let bytes: [u8; 64] = vs.as_ref()[..64].try_into()?;
+                        ed25519::Signature::from_bytes(&bytes)
+                    };
+                    vk.verify_strict(msg, &signature)?;
+                }
+                _ => return Err(Error::MissingKey),
+            }
+            Ok(())
+        }
     }
 
     /// get the public key from the private key if it is a private key

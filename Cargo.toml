@@ -1,6 +1,6 @@
 [package]
 name = "multikey"
-version = "0.2.13"
+version = "0.2.14"
 edition = "2021"
 authors = ["Dave Huseby <dwh@linuxprogrammer.org>"]
 description = "Multikey self-describing cryptographic key data"
@@ -28,6 +28,7 @@ ssh-key = { version = "0.6.2", features = ["alloc", "crypto", "ed25519"]}
 thiserror = "1.0"
 typenum = "1.17"
 unsigned-varint = { version = "0.8", features = ["std"]}
+varsig = { version = "0.1", git = "https://github.com/cryptidtech/varsig.git" }
 zeroize = "1.6"
 
 [dev-dependencies]

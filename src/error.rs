@@ -4,6 +4,14 @@ use thiserror::Error;
 #[derive(Debug, Error)]
 #[non_exhaustive]
 pub enum Error {
+    /// Bcrypt PBKDF error
+    #[error(transparent)]
+    Bcrypt(#[from] bcrypt_pbkdf::Error),
+
+    /// ed25519-dalek error
+    #[error(transparent)]
+    Ed25519Dalek(#[from] ed25519_dalek::ed25519::Error),
+
     /// Multibase conversion error
     #[error(transparent)]
     Multibase(#[from] multibase::Error),
@@ -39,10 +47,6 @@ pub enum Error {
     /// Utf8 error
     #[error(transparent)]
     Utf8(#[from] std::string::FromUtf8Error),
-
-    /// Bcrypt PBKDF error
-    #[error(transparent)]
-    Bcrypt(#[from] bcrypt_pbkdf::Error),
 
     /// Error converting from ssh keys
     #[error("Unsupported SSH key algorithm: {0}")]
