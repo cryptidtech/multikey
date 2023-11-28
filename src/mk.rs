@@ -2,6 +2,7 @@ use crate::{
     encdec::{EncDec, Kdf},
     error::Error,
 };
+use core::fmt;
 use ed25519_dalek as ed25519;
 use multibase::Base;
 use multicodec::Codec;
@@ -15,7 +16,6 @@ use ssh_key::{
     public::{EcdsaPublicKey, Ed25519PublicKey, KeyData},
     EcdsaCurve, PrivateKey, PublicKey,
 };
-use std::fmt;
 use typenum::consts::*;
 use zeroize::Zeroizing;
 
