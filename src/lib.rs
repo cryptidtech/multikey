@@ -7,28 +7,31 @@
     unused_qualifications
 )]
 
-/// The result type for this crate
-pub type Result<T> = anyhow::Result<T>;
-
-/// data unit for storing key data
-pub mod du;
-
 /// encryption/decryption trait
 pub mod encdec;
+pub use encdec::{EncDec, Kdf};
 
 /// Errors produced by this library
 pub mod error;
+pub use error::Error;
 
 /// Multikey type and functions
 pub mod mk;
+pub use mk::{Builder, EncodedMultikey, Multikey};
+
+/// Serde serialization
+#[cfg(feature = "serde")]
+pub mod serde;
 
 /// ...and in the darkness bind them
 pub mod prelude {
-    use super::*;
+    pub use super::{
+        encdec::*,
+        mk::{Builder, EncodedMultikey, Multikey},
+    };
 
-    pub use super::Result;
-    pub use du::*;
-    pub use encdec::*;
-    pub use error::*;
-    pub use mk::*;
+    /// re-exports
+    pub use multibase::Base;
+    pub use multicodec::prelude::Codec;
+    pub use multiutil::prelude::BaseEncoded;
 }

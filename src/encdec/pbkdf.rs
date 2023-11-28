@@ -1,4 +1,4 @@
-use crate::{du::DataUnit, encdec::Kdf, error::Error, mk::Multikey, Result};
+use crate::{prelude::*, Error};
 use multicodec::codec::Codec;
 use rand::{CryptoRng, RngCore};
 use zeroize::Zeroizing;
@@ -20,16 +20,16 @@ impl Kdf for Pbkdf {
         &self,
         mk: &mut Multikey,
         passphrase: impl AsRef<[u8]>,
-    ) -> Result<Zeroizing<Vec<u8>>> {
+    ) -> Result<Zeroizing<Vec<u8>>, Error> {
         match self {
             Pbkdf::Bcrypt { rounds, salt } => {
                 let mut out = [0u8; 32];
                 bcrypt_pbkdf::bcrypt_pbkdf(passphrase, salt, *rounds, &mut out)?;
-                mk.codec_values_mut().push(Codec::BcryptPbkdf.into());
-                mk.codec_values_mut().push(*rounds as u128); // rounds
-                let len = mk.data_units().len();
-                mk.codec_values_mut().push(len as u128); // index of the salt data unit
-                mk.data_units_mut().push(DataUnit::new(salt));
+                mk.attributes_mut().push(Codec::BcryptPbkdf.into());
+                mk.attributes_mut().push(*rounds as u64); // rounds
+                let len = mk.data().len();
+                mk.attributes_mut().push(len as u64); // index of the salt data unit
+                mk.data_mut().push(salt.to_vec());
                 Ok(out.to_vec().into())
             }
         }
@@ -73,8 +73,8 @@ impl Builder {
     /// initialize the builder from the Multikey
     pub fn from_multikey(mut self, mk: &Multikey) -> Self {
         if mk.is_encrypted() {
-            let cvs = mk.codec_values();
-            let dus = mk.data_units();
+            let cvs = mk.attributes();
+            let dus = mk.data();
             // go through the codec values looking for an encryption codec and its
             // cipher parameters
             'values: for i in 0..cvs.len() {
@@ -95,7 +95,7 @@ impl Builder {
                         // i + 2 is the index of the salt data
                         if let Some(salt_idx) = cvs.get(i + 2) {
                             if let Some(salt) = dus.get(*salt_idx as usize) {
-                                self.salt = Some(salt.as_ref().to_vec());
+                                self.salt = Some(salt.to_vec());
                             }
                         }
                     }
@@ -132,18 +132,18 @@ impl Builder {
     }
 
     /// build the pbkdf
-    pub fn try_build(self) -> Result<Pbkdf> {
-        Ok(match self.codec {
-            Codec::BcryptPbkdf => Pbkdf::Bcrypt {
+    pub fn try_build(self) -> Result<Pbkdf, Error> {
+        match self.codec {
+            Codec::BcryptPbkdf => Ok(Pbkdf::Bcrypt {
                 rounds: self
                     .rounds
                     .ok_or(Error::PbkdfFailed("missing rounds".to_string()))?,
                 salt: self
                     .salt
                     .ok_or(Error::PbkdfFailed("missing salt".to_string()))?,
-            },
-            _ => anyhow::bail!(Error::UnsupportedKdf(self.codec)),
-        })
+            }),
+            _ => Err(Error::UnsupportedKdf(self.codec)),
+        }
     }
 }
 
@@ -169,7 +169,7 @@ mod tests {
             hex::encode(&key),
             "776d0ddd8c1a58b387117719b0630502cb195210a1f6b08b0865ae07f043ed6b"
         );
-        assert_eq!(mk.codec_values().len(), 3);
-        assert_eq!(mk.data_units().len(), 2);
+        assert_eq!(mk.attributes().len(), 3);
+        assert_eq!(mk.data().len(), 2);
     }
 }

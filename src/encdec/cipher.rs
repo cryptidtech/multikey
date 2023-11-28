@@ -1,4 +1,4 @@
-use crate::{du::DataUnit, encdec::EncDec, error::Error, mk::Multikey, Result};
+use crate::{prelude::*, Error};
 use multicodec::codec::Codec;
 use rand::{CryptoRng, RngCore};
 use sodiumoxide::crypto::aead::chacha20poly1305;
@@ -20,19 +20,19 @@ pub enum Cipher {
 }
 
 impl EncDec for Cipher {
-    fn decrypt(&self, mk: &mut Multikey, key: Zeroizing<Vec<u8>>) -> Result<()> {
+    fn decrypt(&self, mk: &mut Multikey, key: Zeroizing<Vec<u8>>) -> Result<(), Error> {
         if !mk.is_encrypted() {
-            anyhow::bail!(Error::DecryptionFailed(
-                "multikey is not encrypted".to_string()
+            return Err(Error::DecryptionFailed(
+                "multikey is not encrypted".to_string(),
             ));
         }
         match self {
             Cipher::ChaCha20Poly1305 { nonce, msg } => {
                 if nonce.len() != chacha20poly1305::NONCEBYTES {
-                    anyhow::bail!(Error::Nonce("invalid length".to_string()));
+                    return Err(Error::Nonce("invalid length".to_string()));
                 }
                 if key.len() != chacha20poly1305::KEYBYTES {
-                    anyhow::bail!(Error::Key("invalid length".to_string()));
+                    return Err(Error::Key("invalid length".to_string()));
                 }
                 let n = chacha20poly1305::Nonce::from_slice(nonce.as_slice())
                     .ok_or(Error::Nonce("from_slice failure".to_string()))?;
@@ -42,7 +42,7 @@ impl EncDec for Cipher {
                     Error::DecryptionFailed("chacha20poly1305 decryption failed".to_string())
                 })?;
 
-                mk.data_units_mut().push(DataUnit::new(&dec));
+                mk.data_mut().push(dec);
                 mk.set_encrypted(false);
 
                 Ok(())
@@ -50,19 +50,19 @@ impl EncDec for Cipher {
         }
     }
 
-    fn encrypt(&self, mk: &mut Multikey, key: Zeroizing<Vec<u8>>) -> Result<()> {
+    fn encrypt(&self, mk: &mut Multikey, key: Zeroizing<Vec<u8>>) -> Result<(), Error> {
         if mk.is_encrypted() {
-            anyhow::bail!(Error::EncryptionFailed(
-                "multikey is encrypted alread".to_string()
-            ))
+            return Err(Error::EncryptionFailed(
+                "multikey is encrypted alread".to_string(),
+            ));
         }
         match self {
             Cipher::ChaCha20Poly1305 { nonce, msg } => {
                 if nonce.len() != chacha20poly1305::NONCEBYTES {
-                    anyhow::bail!(Error::Nonce("invalid length".to_string()));
+                    return Err(Error::Nonce("invalid length".to_string()));
                 }
                 if key.len() != chacha20poly1305::KEYBYTES {
-                    anyhow::bail!(Error::Key("invalid length".to_string()));
+                    return Err(Error::Key("invalid length".to_string()));
                 }
                 let n = chacha20poly1305::Nonce::from_slice(nonce.as_slice())
                     .ok_or(Error::Nonce("from_slice failure".to_string()))?;
@@ -70,13 +70,13 @@ impl EncDec for Cipher {
                     .ok_or(Error::Key("from_slice failure".to_string()))?;
                 let enc = chacha20poly1305::seal(msg.as_slice(), None, &n, &k);
 
-                mk.codec_values_mut().push(Codec::Chacha20Poly1305.into());
-                let len = mk.data_units().len();
-                mk.codec_values_mut().push(len as u128); // index of nonce
-                mk.data_units_mut().push(DataUnit::new(nonce));
-                let len = mk.data_units().len();
-                mk.codec_values_mut().push(len as u128); // index of ciphertext
-                mk.data_units_mut().push(DataUnit::new(&enc));
+                mk.attributes_mut().push(Codec::Chacha20Poly1305.into());
+                let len = mk.data().len();
+                mk.attributes_mut().push(len as u64); // index of nonce
+                mk.data_mut().push(nonce.to_vec());
+                let len = mk.data().len();
+                mk.attributes_mut().push(len as u64); // index of ciphertext
+                mk.data_mut().push(enc);
                 mk.set_encrypted(true);
 
                 Ok(())
@@ -125,9 +125,9 @@ impl Builder {
 
     /// create a new builder from an existing multikey
     pub fn from_multikey(mut self, mk: &Multikey) -> Self {
-        let dus = mk.data_units();
+        let dus = mk.data();
         if mk.is_encrypted() {
-            let cvs = mk.codec_values();
+            let cvs = mk.attributes();
 
             // go through the codec values looking for an encryption codec and its
             // cipher parameters
@@ -144,14 +144,14 @@ impl Builder {
                         // i + 1 is the index of the nonce
                         if let Some(nonce_idx) = cvs.get(i + 1) {
                             if let Some(nonce) = dus.get(*nonce_idx as usize) {
-                                self.nonce = Some(nonce.as_ref().to_vec());
+                                self.nonce = Some(nonce.to_vec());
                             }
                         }
 
                         // i + 2 is the index of the encrypted key
                         if let Some(msg_idx) = cvs.get(i + 2) {
                             if let Some(msg) = dus.get(*msg_idx as usize) {
-                                self.msg = Some(msg.as_ref().to_vec());
+                                self.msg = Some(msg.to_vec());
                             }
                         }
                     }
@@ -162,7 +162,7 @@ impl Builder {
             // for unencrypted multikeys we just need to initialize the msg with
             // the unencrypted key data unit
             if let Some(msg) = dus.get(KEY) {
-                self.msg = Some(msg.as_ref().to_vec());
+                self.msg = Some(msg.to_vec());
             }
         }
         self
@@ -188,17 +188,17 @@ impl Builder {
     }
 
     /// build with ciphertext
-    pub fn try_build(self) -> Result<Cipher> {
-        Ok(match self.codec {
-            Codec::Chacha20Poly1305 => Cipher::ChaCha20Poly1305 {
+    pub fn try_build(self) -> Result<Cipher, Error> {
+        match self.codec {
+            Codec::Chacha20Poly1305 => Ok(Cipher::ChaCha20Poly1305 {
                 nonce: self
                     .nonce
                     .ok_or(Error::CipherFailed("missing nonce".to_string()))?,
                 msg: self
                     .msg
                     .ok_or(Error::CipherFailed("missing msg".to_string()))?,
-            },
-            _ => anyhow::bail!(Error::UnsupportedEncryption(self.codec)),
-        })
+            }),
+            _ => Err(Error::UnsupportedEncryption(self.codec)),
+        }
     }
 }

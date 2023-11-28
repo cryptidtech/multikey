@@ -18,14 +18,14 @@ ChaCha-128, and ChaCha-256 keys.
 ```
 multikey   encrypted   count of codec-         count of key         variable number
 sigil       boolean   specific varuints         data units        of data unit octets 
-|                 \           |                      |                     |
-v                  v          v                      v                  /-----\
+|                 \          |                      |                     |
+v                  v         v                      v                  /-----\
 0x3a <varuint> <varuint> <varuint> N(<varuint>) <varuint> N(<varuint> N(OCTET))
-         ^                \---------/            \-- ^ -------------/
-         |                    |                      |            |
-      key codec        variable number        count of data   variable number
-                      of codec-specific        unit octets    of data units
-                            values
+         ^                          \---------/            \-- ^ -------------/
+         |                              |                      |            |
+      key codec                  variable number        count of data   variable number
+                                of codec-specific        unit octets    of data units
+                                      values
 ```
 
 The multicodec varuint sigil for a multikey encoded key is `0x3a`. Immediately
