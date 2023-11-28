@@ -10,7 +10,6 @@ use multitrait::TryDecodeFrom;
 use multiutil::{BaseEncoded, CodecInfo, EncodingInfo, Varbytes, Varuint};
 use rand::{CryptoRng, RngCore};
 use sec1::point::EncodedPoint;
-
 use ssh_key::{
     private::{EcdsaKeypair, Ed25519Keypair, Ed25519PrivateKey, KeypairData},
     public::{EcdsaPublicKey, Ed25519PublicKey, KeyData},
@@ -33,7 +32,7 @@ const KEY: usize = 1;
 pub type EncodedMultikey = BaseEncoded<Multikey>;
 
 /// The main multikey structure
-#[derive(Clone, PartialEq)]
+#[derive(Clone, PartialEq, Eq)]
 pub struct Multikey {
     /// The key codec
     pub(crate) codec: Codec,
