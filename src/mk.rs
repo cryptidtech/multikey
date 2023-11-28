@@ -486,7 +486,13 @@ impl<'a> TryDecodeFrom<'a> for Multikey {
 
 impl fmt::Debug for Multikey {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{} - ('{}')", self.codec().as_str(), self.codec().code())
+        write!(
+            f,
+            "{:?} - {:?} - Encrypted: {}",
+            SIGIL,
+            self.codec(),
+            if self.is_encrypted() { "true" } else { "false" }
+        )
     }
 }
 
@@ -733,6 +739,20 @@ mod tests {
             .unwrap();
         let v: Vec<u8> = mk.into();
         assert_eq!(48, v.len());
+    }
+
+    #[test]
+    fn test_encoded_random() {
+        let mut rng = rand::rngs::OsRng::default();
+        let mk = Builder::new_from_random_bytes(Codec::Ed25519Priv, &mut rng)
+            .unwrap()
+            .with_encoding(Base::Base58Btc)
+            .with_comment("test key")
+            .try_build_encoded()
+            .unwrap();
+        println!("{:?}", mk);
+        let s = mk.to_string();
+        assert_eq!(mk, EncodedMultikey::try_from(s.as_str()).unwrap());
     }
 
     #[test]
