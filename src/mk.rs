@@ -5,7 +5,7 @@ use crate::{
 use ed25519_dalek as ed25519;
 use multibase::Base;
 use multicodec::Codec;
-use multihash::mh::{self, Multihash};
+use multihash::mh::{self, EncodedMultihash};
 use multitrait::TryDecodeFrom;
 use multiutil::{BaseEncoded, CodecInfo, EncodingInfo, Varbytes, Varuint};
 use rand::{CryptoRng, RngCore};
@@ -127,12 +127,12 @@ impl Multikey {
     }
 
     /// get the figureprint of the key
-    pub fn fingerprint(&self, codec: Codec) -> Result<Multihash, Error> {
+    pub fn fingerprint(&self, codec: Codec) -> Result<EncodedMultihash, Error> {
         if self.is_encrypted() {
             return Err(Error::FingerprintFailed("key is encrypted".to_string()));
         }
         let key = self.data.get(KEY).ok_or(Error::MissingKey)?;
-        Ok(mh::Builder::new(codec).try_build(key)?)
+        Ok(mh::Builder::new(codec).try_build_encoded(key)?)
     }
 
     /// encrypt this multikey
