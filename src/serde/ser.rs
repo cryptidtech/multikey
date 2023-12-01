@@ -22,7 +22,7 @@ impl ser::Serialize for Multikey {
 
             let mut ss = serializer.serialize_struct(SIGIL.as_str(), 4)?;
             ss.serialize_field("codec", &self.codec.code())?;
-            ss.serialize_field("encrypted", &(self.encrypted != 0))?;
+            ss.serialize_field("encrypted", &self.encrypted)?;
             ss.serialize_field("attributes", &cv)?;
             ss.serialize_field("data", &du)?;
             ss.end()

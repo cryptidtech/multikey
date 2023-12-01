@@ -39,36 +39,16 @@ pub struct Multikey {
     pub(crate) codec: Codec,
 
     /// if the key is encrypted
-    pub(crate) encrypted: u8,
+    pub(crate) encrypted: bool,
 
     /// The codec-specific attributes
-    pub(crate) attributes: Vec<u64>,
+    pub attributes: Vec<u64>,
 
     /// The data units for the key
-    pub(crate) data: Vec<Vec<u8>>,
+    pub data: Vec<Vec<u8>>,
 }
 
 impl Multikey {
-    /// return an immutable reference to the attributes
-    pub fn attributes(&self) -> &Vec<u64> {
-        &self.attributes
-    }
-
-    /// return a mutable reference to the attributes
-    pub fn attributes_mut(&mut self) -> &mut Vec<u64> {
-        &mut self.attributes
-    }
-
-    /// return an immutable reference to the data
-    pub fn data(&self) -> &Vec<Vec<u8>> {
-        &self.data
-    }
-
-    /// return a mutable reference to the data
-    pub fn data_mut(&mut self) -> &mut Vec<Vec<u8>> {
-        &mut self.data
-    }
-
     /// whether or not this is a secret key
     pub fn is_private_key(&self) -> bool {
         use multicodec::codec::Codec::*;
@@ -115,15 +95,7 @@ impl Multikey {
 
     /// is this multikey encrypted?
     pub fn is_encrypted(&self) -> bool {
-        self.encrypted != 0u8
-    }
-
-    /// set the encryption state
-    pub fn set_encrypted(&mut self, e: bool) {
-        match e {
-            true => self.encrypted = 1u8,
-            false => self.encrypted = 0u8,
-        }
+        self.encrypted
     }
 
     /// get the figureprint of the key
@@ -411,7 +383,7 @@ impl Default for Multikey {
 
         Multikey {
             codec: Codec::Identity,
-            encrypted: 0u8,
+            encrypted: false,
             attributes: Vec::default(),
             data,
         }
@@ -466,7 +438,7 @@ impl<'a> TryDecodeFrom<'a> for Multikey {
         let (codec, ptr) = Codec::try_decode_from(ptr)?;
 
         // decode the encrypted flag
-        let (encrypted, ptr) = Varuint::<u8>::try_decode_from(ptr)?;
+        let (encrypted, ptr) = Varuint::<bool>::try_decode_from(ptr)?;
         let encrypted = encrypted.to_inner();
 
         // decode the number of codec-specific values
@@ -752,7 +724,7 @@ impl Builder {
         data.push(key_data);
         Ok(Multikey {
             codec: self.codec,
-            encrypted: 0u8,
+            encrypted: false,
             attributes: Vec::default(),
             data,
         })

@@ -42,8 +42,8 @@ impl EncDec for Cipher {
                     Error::DecryptionFailed("chacha20poly1305 decryption failed".to_string())
                 })?;
 
-                mk.data_mut().push(dec);
-                mk.set_encrypted(false);
+                mk.data.push(dec);
+                mk.encrypted = false;
 
                 Ok(())
             }
@@ -70,14 +70,14 @@ impl EncDec for Cipher {
                     .ok_or(Error::Key("from_slice failure".to_string()))?;
                 let enc = chacha20poly1305::seal(msg.as_slice(), None, &n, &k);
 
-                mk.attributes_mut().push(Codec::Chacha20Poly1305.into());
-                let len = mk.data().len();
-                mk.attributes_mut().push(len as u64); // index of nonce
-                mk.data_mut().push(nonce.to_vec());
-                let len = mk.data().len();
-                mk.attributes_mut().push(len as u64); // index of ciphertext
-                mk.data_mut().push(enc);
-                mk.set_encrypted(true);
+                mk.attributes.push(Codec::Chacha20Poly1305.into());
+                let len = mk.data.len();
+                mk.attributes.push(len as u64); // index of nonce
+                mk.data.push(nonce.to_vec());
+                let len = mk.data.len();
+                mk.attributes.push(len as u64); // index of ciphertext
+                mk.data.push(enc);
+                mk.encrypted = true;
 
                 Ok(())
             }
@@ -125,9 +125,9 @@ impl Builder {
 
     /// create a new builder from an existing multikey
     pub fn from_multikey(mut self, mk: &Multikey) -> Self {
-        let dus = mk.data();
+        let dus = &mk.data;
         if mk.is_encrypted() {
-            let cvs = mk.attributes();
+            let cvs = &mk.attributes;
 
             // go through the codec values looking for an encryption codec and its
             // cipher parameters

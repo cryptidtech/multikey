@@ -25,11 +25,11 @@ impl Kdf for Pbkdf {
             Pbkdf::Bcrypt { rounds, salt } => {
                 let mut out = [0u8; 32];
                 bcrypt_pbkdf::bcrypt_pbkdf(passphrase, salt, *rounds, &mut out)?;
-                mk.attributes_mut().push(Codec::BcryptPbkdf.into());
-                mk.attributes_mut().push(*rounds as u64); // rounds
-                let len = mk.data().len();
-                mk.attributes_mut().push(len as u64); // index of the salt data unit
-                mk.data_mut().push(salt.to_vec());
+                mk.attributes.push(Codec::BcryptPbkdf.into());
+                mk.attributes.push(*rounds as u64); // rounds
+                let len = mk.data.len();
+                mk.attributes.push(len as u64); // index of the salt data unit
+                mk.data.push(salt.to_vec());
                 Ok(out.to_vec().into())
             }
         }
@@ -73,8 +73,8 @@ impl Builder {
     /// initialize the builder from the Multikey
     pub fn from_multikey(mut self, mk: &Multikey) -> Self {
         if mk.is_encrypted() {
-            let cvs = mk.attributes();
-            let dus = mk.data();
+            let cvs = &mk.attributes;
+            let dus = &mk.data;
             // go through the codec values looking for an encryption codec and its
             // cipher parameters
             'values: for i in 0..cvs.len() {
@@ -169,7 +169,7 @@ mod tests {
             hex::encode(&key),
             "776d0ddd8c1a58b387117719b0630502cb195210a1f6b08b0865ae07f043ed6b"
         );
-        assert_eq!(mk.attributes().len(), 3);
-        assert_eq!(mk.data().len(), 2);
+        assert_eq!(mk.attributes.len(), 3);
+        assert_eq!(mk.data.len(), 2);
     }
 }

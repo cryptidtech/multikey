@@ -58,7 +58,7 @@ impl<'de> Deserialize<'de> for Multikey {
                                 return Err(Error::duplicate_field("encrypted"));
                             }
                             let e: bool = map.next_value()?;
-                            encrypted = Some(e as u8);
+                            encrypted = Some(e);
                         }
                         Field::Attributes => {
                             if attributes.is_some() {
@@ -103,7 +103,7 @@ impl<'de> Deserialize<'de> for Multikey {
             let (sigil, codec, encrypted, attributes, data): (
                 Codec,
                 Codec,
-                Varuint<u8>,
+                Varuint<bool>,
                 Vec<Varuint<u64>>,
                 Vec<Varbytes>,
             ) = Deserialize::deserialize(deserializer)?;
