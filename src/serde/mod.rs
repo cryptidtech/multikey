@@ -59,9 +59,8 @@ mod tests {
 
         assert_tokens(
             &pk.readable(),
-            &[Token::String(
-                "z2AqaimMwoBVjEBeeJjHtE3D2FZjPwtvnHMC4xBXoEN5uNvciUBLRKxfVnzm14deWEUqsoheRGYwHcKkEAPn5eoPa",
-            )],
+            &[Token::BorrowedStr("zafih1aQHLcAktBDdKxC8r2yqunSwYxJBXQ9bvXjSMeUHaXHQgLHv1LH63cv1iB6HntmWLhzsWrMbSZXAAvZPsa")
+            ],
         );
     }
 
