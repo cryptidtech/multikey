@@ -1,11 +1,31 @@
-use crate::mk::{Multikey, SIGIL};
+use crate::{
+    mk::{Attributes, SIGIL},
+    AttrId, Multikey,
+};
 use core::fmt;
 use multicodec::Codec;
-use multiutil::{EncodedVarbytes, EncodedVaruint, Varbytes, Varuint};
+use multiutil::{EncodedVarbytes, Varbytes};
 use serde::{
     de::{Error, MapAccess, Visitor},
     Deserialize, Deserializer,
 };
+use zeroize::Zeroizing;
+
+/// Deserialize instance of [`crate::AttrId`]
+impl<'de> Deserialize<'de> for AttrId {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        if deserializer.is_human_readable() {
+            let s: &str = Deserialize::deserialize(deserializer)?;
+            Ok(AttrId::try_from(s).map_err(|e| Error::custom(e.to_string()))?)
+        } else {
+            let b: &[u8] = Deserialize::deserialize(deserializer)?;
+            Ok(AttrId::try_from(b).map_err(|e| Error::custom(e.to_string()))?)
+        }
+    }
+}
 
 /// Deserialize instance of [`crate::Multikey`]
 impl<'de> Deserialize<'de> for Multikey {
@@ -13,15 +33,14 @@ impl<'de> Deserialize<'de> for Multikey {
     where
         D: Deserializer<'de>,
     {
-        const FIELDS: &'static [&'static str] = &["codec", "encrypted", "attributes", "data"];
+        const FIELDS: &'static [&'static str] = &["codec", "comment", "attributes"];
 
         #[derive(Deserialize)]
         #[serde(field_identifier, rename_all = "lowercase")]
         enum Field {
             Codec,
-            Encrypted,
+            Comment,
             Attributes,
-            Data,
         }
 
         struct MultikeyVisitor;
@@ -38,61 +57,53 @@ impl<'de> Deserialize<'de> for Multikey {
                 V: MapAccess<'de>,
             {
                 let mut codec = None;
-                let mut encrypted = None;
+                let mut comment = None;
                 let mut attributes = None;
-                let mut data = None;
                 while let Some(key) = map.next_key()? {
                     match key {
                         Field::Codec => {
                             if codec.is_some() {
                                 return Err(Error::duplicate_field("codec"));
                             }
-                            let c: u64 = map.next_value()?;
-                            codec = Some(
-                                Codec::try_from(c)
-                                    .map_err(|_| Error::custom("invalid multikey codec"))?,
-                            );
+                            let c: Codec = map.next_value()?;
+                            codec = Some(c);
                         }
-                        Field::Encrypted => {
-                            if encrypted.is_some() {
-                                return Err(Error::duplicate_field("encrypted"));
+                        Field::Comment => {
+                            if comment.is_some() {
+                                return Err(Error::duplicate_field("comment"));
                             }
-                            let e: bool = map.next_value()?;
-                            encrypted = Some(e);
+                            let c: String = map.next_value()?;
+                            comment = Some(c);
                         }
                         Field::Attributes => {
                             if attributes.is_some() {
                                 return Err(Error::duplicate_field("attributes"));
                             }
-                            let cv: Vec<EncodedVaruint<u64>> = map.next_value()?;
-                            attributes = Some(cv);
-                        }
-                        Field::Data => {
-                            if data.is_some() {
-                                return Err(Error::duplicate_field("data"));
-                            }
-                            let du: Vec<EncodedVarbytes> = map.next_value()?;
-                            data = Some(du);
+                            let attr: Vec<(AttrId, EncodedVarbytes)> = map.next_value()?;
+                            let mut a = Attributes::new();
+                            attr.iter()
+                                .try_for_each(|(id, attr)| -> Result<(), V::Error> {
+                                    let i = *id;
+                                    let v: Zeroizing<Vec<u8>> = (***attr).clone().into();
+                                    if a.insert(i, v).is_some() {
+                                        return Err(Error::duplicate_field(
+                                            "duplicate attribute id",
+                                        ));
+                                    }
+                                    Ok(())
+                                })?;
+                            attributes = Some(a);
                         }
                     }
                 }
                 let codec = codec.ok_or_else(|| Error::missing_field("codec"))?;
-                let encrypted = encrypted.ok_or_else(|| Error::missing_field("encrypted"))?;
-                let attributes: Vec<u64> = attributes
-                    .ok_or_else(|| Error::missing_field("attributes"))?
-                    .iter()
-                    .map(|v| v.clone().to_inner().to_inner())
-                    .collect();
-                let data = data
-                    .ok_or_else(|| Error::missing_field("data"))?
-                    .iter()
-                    .map(|du| du.clone().to_inner().to_inner())
-                    .collect();
+                let comment = comment.ok_or_else(|| Error::missing_field("comment"))?;
+                let attributes = attributes.ok_or_else(|| Error::missing_field("attributes"))?;
+
                 Ok(Multikey {
                     codec,
-                    encrypted,
+                    comment,
                     attributes,
-                    data,
                 })
             }
         }
@@ -100,25 +111,29 @@ impl<'de> Deserialize<'de> for Multikey {
         if deserializer.is_human_readable() {
             deserializer.deserialize_struct(SIGIL.as_str(), FIELDS, MultikeyVisitor)
         } else {
-            let (sigil, codec, encrypted, attributes, data): (
-                Codec,
-                Codec,
-                Varuint<bool>,
-                Vec<Varuint<u64>>,
-                Vec<Varbytes>,
-            ) = Deserialize::deserialize(deserializer)?;
+            let (sigil, codec, comment, attr): (Codec, Codec, Varbytes, Vec<(AttrId, Varbytes)>) =
+                Deserialize::deserialize(deserializer)?;
 
             if sigil != SIGIL {
                 return Err(Error::custom("deserialized sigil is not a Multikey sigil"));
             }
-            let encrypted = encrypted.to_inner();
-            let attributes = attributes.iter().map(|v| v.clone().to_inner()).collect();
-            let data = data.iter().map(|du| du.clone().to_inner()).collect();
+            let comment = String::from_utf8(comment.to_inner())
+                .map_err(|_| Error::custom("failed to decode comment"))?;
+            let mut attributes = Attributes::new();
+            attr.iter()
+                .try_for_each(|(id, attr)| -> Result<(), D::Error> {
+                    let i = *id;
+                    let a: Zeroizing<Vec<u8>> = attr.to_vec().into();
+                    if attributes.insert(i, a).is_some() {
+                        return Err(Error::duplicate_field("duplicate attribute id"));
+                    }
+                    Ok(())
+                })?;
+
             Ok(Self {
                 codec,
-                encrypted,
+                comment,
                 attributes,
-                data,
             })
         }
     }

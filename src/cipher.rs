@@ -1,0 +1,160 @@
+use crate::{mk::Attributes, AttrId, Error, Multikey};
+use multicodec::Codec;
+use multiutil::Varuint;
+use rand::{CryptoRng, RngCore};
+use zeroize::Zeroizing;
+
+/// Builder for creating a Multikey intended for encryption/decryption of other
+/// Multikeys
+#[derive(Clone, Debug, Default)]
+pub struct Builder {
+    codec: Codec,
+    key_length: Option<Zeroizing<Vec<u8>>>,
+    nonce: Option<Zeroizing<Vec<u8>>>,
+    nonce_length: Option<Zeroizing<Vec<u8>>>,
+}
+
+impl Builder {
+    /// create a new builder with the codec
+    pub fn new(codec: Codec) -> Self {
+        Builder {
+            codec,
+            ..Default::default()
+        }
+    }
+
+    /// initialize from a multikey with cipher attributes in it
+    pub fn try_from_multikey(mut self, mk: &Multikey) -> Result<Self, Error> {
+        // try to look up the cipher codec in the multikey attributes
+        if let Some(v) = mk.attributes.get(&AttrId::CipherCodec) {
+            if let Ok(codec) = Codec::try_from(v.as_slice()) {
+                self.codec = codec;
+            }
+        }
+        // try to look up the key_length in the multikey attributes
+        if let Some(v) = mk.attributes.get(&AttrId::CipherKeyLen) {
+            self.key_length = Some(v.clone());
+        }
+        // try to look up the nonce in the multikey attributes
+        if let Some(v) = mk.attributes.get(&AttrId::CipherNonce) {
+            self.nonce = Some(v.clone());
+        }
+        // try to look up the nonce_length in the multikey attributes
+        if let Some(v) = mk.attributes.get(&AttrId::CipherNonceLen) {
+            self.nonce_length = Some(v.clone());
+        }
+        Ok(self)
+    }
+
+    /// add in the nonce for the cipher
+    pub fn with_nonce(mut self, nonce: &impl AsRef<[u8]>) -> Self {
+        let n: Vec<u8> = nonce.as_ref().into();
+        let nlen = n.len();
+        self.nonce = Some(n.into());
+        let nlen: Vec<u8> = Varuint(nlen).into();
+        self.nonce_length = Some(nlen.into());
+        self
+    }
+
+    /// add a random nonce for cipher
+    pub fn with_random_nonce(mut self, len: usize, rng: &mut (impl RngCore + CryptoRng)) -> Self {
+        // heap allocate a buffer to receive the random nonce
+        let mut buf: Zeroizing<Vec<u8>> = vec![0; len].into();
+        rng.fill_bytes(buf.as_mut_slice());
+        self.nonce = Some(buf);
+        self
+    }
+
+    /// build a key using key bytes
+    pub fn try_build(self) -> Result<Multikey, Error> {
+        let codec = self.codec;
+        let comment = String::default();
+
+        // add the cipher attributes
+        let mut attributes = Attributes::new();
+        if let Some(key_length) = self.key_length {
+            attributes.insert(AttrId::CipherKeyLen, key_length);
+        }
+        if let Some(nonce) = self.nonce {
+            attributes.insert(AttrId::CipherNonce, nonce);
+        }
+        if let Some(nonce_length) = self.nonce_length {
+            attributes.insert(AttrId::CipherNonceLen, nonce_length);
+        }
+
+        Ok(Multikey {
+            codec,
+            comment,
+            attributes,
+        })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{
+        attributes_view, cipher_attributes_view, cipher_view, kdf, kdf_attributes_view, kdf_view,
+        mk,
+    };
+
+    #[test]
+    fn test_chacha20() {
+        let salt = hex::decode("8bb78be51ac7cc98f44e38947ff8a128764ec039b89687a790dfa8444ba97682")
+            .unwrap();
+        // create a kdf multikey
+        let kdfmk = kdf::Builder::new(Codec::BcryptPbkdf)
+            .with_rounds(10)
+            .with_salt(&salt)
+            .try_build()
+            .unwrap();
+
+        let nonce = hex::decode("00b61a43d4d1e8d7").unwrap();
+        // create a cipher multikey
+        let ciphermk = Builder::new(Codec::Chacha20Poly1305)
+            .with_nonce(&nonce)
+            .try_build()
+            .unwrap();
+
+        // get the kdf view on the kdf multikey
+        let kdf = kdf_view(&kdfmk).unwrap();
+
+        // derive a key for the cipher multikey to use
+        let ciphermk = kdf
+            .borrow()
+            .derive_key(&ciphermk, b"for great justice, move every zig!")
+            .unwrap();
+
+        // get the cipher view on the cipher multikey
+        let cipher = cipher_view(&ciphermk).unwrap();
+
+        // generate a random secret key
+        let mut rng = rand::rngs::OsRng::default();
+        let mk = mk::Builder::new_from_random_bytes(Codec::Ed25519Priv, &mut rng)
+            .unwrap()
+            .with_comment("test key")
+            .try_build()
+            .unwrap();
+
+        // encrypt the secret key
+        let mk = cipher.borrow().encrypt(&mk).unwrap();
+
+        // make sure all of the attributes are right
+        let attr = attributes_view(&mk).unwrap();
+        assert!(attr.borrow().is_encrypted());
+        assert!(!attr.borrow().is_public_key());
+        assert!(attr.borrow().is_secret_key());
+        assert!(attr.borrow().key_bytes().is_ok());
+        assert!(attr.borrow().secret_bytes().is_err());
+        let cattr = cipher_attributes_view(&mk).unwrap();
+        assert_eq!(
+            Codec::Chacha20Poly1305,
+            cattr.borrow().cipher_codec().unwrap()
+        );
+        assert!(cattr.borrow().nonce_bytes().is_ok());
+        assert_eq!(8, cattr.borrow().nonce_length().unwrap());
+        assert_eq!(32, cattr.borrow().key_length().unwrap());
+        let kattr = kdf_attributes_view(&mk).unwrap();
+        assert_eq!(Codec::BcryptPbkdf, kattr.borrow().kdf_codec().unwrap());
+    }
+}

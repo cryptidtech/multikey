@@ -16,81 +16,114 @@ ChaCha-128, and ChaCha-256 keys.
 ## Multikey v1 Format 
 
 ```
-multikey   encrypted   count of codec-         count of key         variable number
-sigil       boolean   specific varuints         data units        of data unit octets 
-|                 \          |                      |                   __|__
-v                  v         v                      v                  /     \
-0x3a <varuint> <varuint> <varuint> N(<varuint>) <varuint> N(<varuint> N(OCTET))
-         ^                          \_________/            \__ ^ ____________/
-         |                              |                      |            |
-      key codec                  variable number        count of data   variable number
-                                of codec-specific        unit octets    of data units
-                                      values
-```
+multikey
+sigil         key comment
+|                  |
+v                  v
+0x3a <varuint> <comment> <attributes>
+         ^                    ^
+         |                    |
+      key codec         key attributes
+
+
+<comment> ::= <varbytes>
+
+                         variable number of attributes
+                                       |
+                            ______________________
+                           /                      \
+<attributes> ::= <varuint> N(<varuint>, <varbytes>)
+                     ^           ^          ^
+                    /           /           |
+            count of      attribute     attribute
+          attributes     identifier       value
+
+
+<varbytes> ::= <varuint> N(OCTET)
+                   ^        ^
+                  /          \
+          count of            variable number
+            octets            of octets
+``` 
 
 The multicodec varuint sigil for a multikey encoded key is `0x3a`. Immediately
-following the sigil is a varuint encoded multicodec value for the encryption
-key codec (e.g. `0xed` for an Ed25519 public key). Following the key codec is a
-varuint number signifying the number of codec specific values. These contain
-things like key encryption or key derivation parameters. After the codec-
-specific values is a varuint specifying the number of key "data units" in this
-multikey. Each data unit is a piece of key data. For instance an RSA public key
-contains two data units: the RSA public exponent and the RSA modulus. Each data
-unit consists of a varuint encoded octet count followed by the octets of the
-data.
+following the sigil is a varuint encoded key codec (e.g. `0xed` for an Ed25519
+public key). Following the key codec the key commment, and finally a variable
+number of key attributes. The attributes consist of a variable number of 
+identifier and value tuples. Think of this like a map with numerical keys. Each
+key codec has a codec-specific set of identifiers for attributes.
+
+This format is designed to support any kind of arbitrarily complex key data in
+such a way that tools are able to know exactly how many octets are in the
+Multikey data so that it can skip over it if they don't support the key codec.
 
 ### Key Comments
 
-By convention, the first data unit of every multikey contains the comment 
-associated with the key. If there is no comment set, the data unit has a 
-count varuint of 0 and no octets following the count.
+By convention, every key has a comment that is easy to extract from the Multikey
+data structure by any tool even if they do not support a specific key codec.
 
 ## Private Keys
 
-Private keys are sensitive and should always be kept encrypted when at rest,
-the codec-specific varuint values specify the key encryption algorithm and any 
-other related parameters such as a key derivation function and its parameters.
+Private keys are sensitive and should always be kept encrypted when at rest.
+The attributes in the key specify whether the key is encrypted and which 
+encryption method was used as well as the key derivation method and parameters.
 
 ### An example of storing an encrypted Ed25519 private key
 
-In this example we will show how to safely store an Ed25519 private key 
+In this example we will show how a Multikey stores an Ed25519 private key
 encrypted using the ChaCha20-Poly1305 AEAD symmetric encryption algorithm using
-a key derived using the Bcrypt PBKDF function with 10 rounds and a 32-byte 
-salt value. Here is how the multikey is encoded:
+a key derived using the Bcrypt PBKDF function with 10 rounds and a 32-byte salt
+value:
 
 ```
 0x3a                -- varuint, multikey sigil 
-0x1300              -- varuint, Ed25519 private key codec 
-0x01                -- varuint, boolean if it is encrypted or not
-0x06                -- varuint, 6 codec-specific varuint values 
-    0xd00d          -- varuint, Bcrypt PBKDF key derivation function
-        0x0a        -- varuint, Bcrypt PBKDF rounds
-        0x03        -- varuint, data unit index of salt
-    0xa5            -- varuint, ChaCha20-Poly1305 symmetric key encryption
-        0x01        -- varuint, data unit index of nonce
-        0x02        -- varuint, data unit index of ciphertext
-0x04                -- varuint, 4 data units
-    0x09            -- varuint, 9 bytes of comment data
-        "multikey!" -- 9 octets of utf-8 comment data
-    0x20            -- varuint, 32 octets of Bcrypt PBKDF salt data
-        [32 octets] -- Bcrypt PBKDF salt data
-    0x08            -- varuint, 12 octets of the ChaCha20-Poly1305 nonce
-        [8 octets]  -- ChaCha20-Poly1305 nonce bytes
-    0x30            -- varuint, 48 octets of ciphertext
-        [48 octets] -- ciphertext
+0x8026              -- varuint, Ed25519 private key codec 
+0x08                -- varuint, length of comment 
+    "test key"      -- 8 octets of utf-8 comment data
+0x0a                -- varuint, 10 attributes
+    0x00            -- varuint, AttrId::KeyIsEncrypted
+        0x01        -- varuint, attribute length
+            0x01    -- 1 octet, bool, it is encrypted!
+    0x01            -- varuint, AttrId::KeyData
+        0x30        -- varuint, attribute length
+            [48 octets] -- ciphertext
+    0x02            -- varuint, AttrId::CipherCodec
+        0x02        -- varuint, attribute length
+            0xa501  -- varuint, ChaCha20-Poly1305 codec
+    0x03            -- varuint, AttrId::CipherKeyLen
+        0x01        -- varuint, attribute length
+            0x20    -- 1 octet, 32 byte key length
+    0x04            -- varuint, AttrId::CipherNonceLen
+        0x01        -- varuint, attribute length
+            0x08    -- 1 octet, 8 byte nonce length
+    0x05            -- varuint, AttrId::CipherNonce
+        0x08        -- varuint, attribute length
+            [8 octets] -- nonce
+    0x06            -- varuint, AttrId::KdfCodec
+        0x03        -- varuint, attribute length
+            0x8da003 -- varuint, Bcrypt KDF codec
+    0x07            -- varuint, AttrId::KdfSaltLen
+        0x01        -- varuint, attribute length
+            0x20    -- varuint, 32 byte salt length
+    0x08            -- varuint, AttrId::KdfSalt
+        0x20        -- varuint, attribute length
+            [32 octets] -- salt
+    0x09            -- varuint, AttrId::KdfRounds
+        0x01        -- varuint, attribute length
+            0x0a    -- varuint, 10 kdf rounds
 ```
 
 In this example the encoding starts off with the multikey sigil (`0x3a`)
-followed by the varuint codec value for an Ed25519 private key (`0x1300`).
-There are six codec-specific values (`0x06`) specifying the key encryption
-algorithm as ChaCha20-Poly1305 (`0xa5`) and that the key is derived from a
-passphrase using the Bcrypt PBKDF algorithm (`0xd00d`) with 10 rounds (`0x0a`).
-The extra values are for specifying the indices in the list of data units for 
-the various values needed for the key derivation and the decryption.
+followed by the varuint codec value for an Ed25519 private key (`0x8026`).
+Following that there is the key comment encoded as varbytes with a varuint 
+length value followed by that number of octets of utf-8 string data. The rest
+of the encoded Multikey is the attributes table. All attributes are optional.
+Each attribute has an attribute ID followed by the varuint encoded length of 
+the attribute data followed by that number of octets of attribute data. In this
+case of an encrypted Ed25519 secret key, there are attributes for the flag
+showing it is encrypted, the encrypted key bytes, the encryption codec, the 
+encryption key length, the nonce length, the nonce data, the kdf codec, the kdf
+salt length, the kdf salt, and the kdf rounds.
 
-The encoding has three data units (`0x03`), the Bcrypt PBKDF salt, the
-ChaCha20-Poly1305 nonce and the ciphertext itself. With all of this data, any
-consuming tool can ask the user for the passphrase, run it through a 10 round
-Bcrypt PBKDF algorithm with the given salt to recreate the ChaCha20-Poly1305
-encryption key. Then using the encryption key and the nonce, the ciphertext can
-be decrypted to the private key data.
+This format is designed to be a flexible container for any kind of key. The 
+design of the attribute store leaves room for new attributes in the future.

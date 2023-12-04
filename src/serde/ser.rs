@@ -1,36 +1,59 @@
-use crate::mk::{Multikey, SIGIL};
-use multiutil::{EncodedVarbytes, EncodedVaruint, Varbytes, Varuint};
+use crate::{mk::SIGIL, AttrId, Multikey};
+use multiutil::{BaseEncoded, EncodedVarbytes, EncodingInfo, Varbytes};
 use serde::ser::{self, SerializeStruct};
 
-/// Serialize instance of [`crate::mh::Multikey`]
+/// Serialize instance of [`crate::AttrId`]
+impl ser::Serialize for AttrId {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: ser::Serializer,
+    {
+        if serializer.is_human_readable() {
+            serializer.serialize_str(self.as_str())
+        } else {
+            let v: Vec<u8> = self.clone().into();
+            serializer.serialize_bytes(v.as_slice())
+        }
+    }
+}
+
+/// Serialize instance of [`crate::Multikey`]
 impl ser::Serialize for Multikey {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: ser::Serializer,
     {
         if serializer.is_human_readable() {
-            let cv: Vec<EncodedVaruint<u64>> = self
+            let attributes: Vec<(String, EncodedVarbytes)> = self
                 .attributes
                 .iter()
-                .map(|v| Varuint::<u64>::encoded_new(*v))
-                .collect();
-            let du: Vec<EncodedVarbytes> = self
-                .data
-                .iter()
-                .map(|du| Varbytes::encoded_new(du.clone()))
+                .map(|(id, attr)| {
+                    (
+                        id.to_string(),
+                        BaseEncoded::new_base(self.encoding(), Varbytes(attr.to_vec())),
+                    )
+                })
                 .collect();
 
             let mut ss = serializer.serialize_struct(SIGIL.as_str(), 4)?;
-            ss.serialize_field("codec", &self.codec.code())?;
-            ss.serialize_field("encrypted", &self.encrypted)?;
-            ss.serialize_field("attributes", &cv)?;
-            ss.serialize_field("data", &du)?;
+            ss.serialize_field("codec", &self.codec)?;
+            ss.serialize_field("comment", &self.comment)?;
+            ss.serialize_field("attributes", &attributes)?;
             ss.end()
         } else {
-            let cv: Vec<Varuint<u64>> = self.attributes.iter().map(|v| Varuint(*v)).collect();
-            let du: Vec<Varbytes> = self.data.iter().map(|du| Varbytes(du.clone())).collect();
+            let attributes: Vec<(AttrId, Varbytes)> = self
+                .attributes
+                .iter()
+                .map(|(id, attr)| (*id, Varbytes(attr.to_vec())))
+                .collect();
 
-            (SIGIL, self.codec, Varuint(self.encrypted), cv, du).serialize(serializer)
+            (
+                SIGIL,
+                self.codec,
+                Varbytes(self.comment.as_bytes().to_vec()),
+                attributes,
+            )
+                .serialize(serializer)
         }
     }
 }

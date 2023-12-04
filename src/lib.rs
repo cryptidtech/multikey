@@ -7,13 +7,23 @@
     unused_qualifications
 )]
 
-/// encryption/decryption trait
-pub mod encdec;
-pub use encdec::{EncDec, Kdf};
-
 /// Errors produced by this library
 pub mod error;
 pub use error::Error;
+
+/// Cipher function builder
+pub mod cipher;
+
+/// Key derivation function builder
+pub mod kdf;
+
+/// Key views
+pub mod key_views;
+pub use key_views::{
+    attributes_view, cipher_attributes_view, cipher_view, conversions_view, kdf_attributes_view,
+    kdf_view, AttrId, AttributesView, CipherAttributesView, CipherView, ConversionsView,
+    KdfAttributesView, KdfView,
+};
 
 /// Multikey type and functions
 pub mod mk;
