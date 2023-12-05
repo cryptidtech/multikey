@@ -30,7 +30,7 @@ impl ser::Serialize for Multikey {
                 .map(|(id, attr)| {
                     (
                         id.to_string(),
-                        BaseEncoded::new_base(self.encoding(), Varbytes(attr.to_vec())),
+                        BaseEncoded::new(self.encoding(), Varbytes(attr.to_vec())),
                     )
                 })
                 .collect();

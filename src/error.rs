@@ -39,23 +39,9 @@ pub enum Error {
     /// Duplicate attribute error
     #[error("Duplicate Multikey attribute: {0}")]
     DuplicateAttribute(u8),
-    /*
-    /// Error with the key codec
-    #[error("Unsupported key codec: {0}")]
-    UnsupportedCodec(multicodec::Codec),
-    /// Cipher error
-    #[error("Cipher error: {0}")]
-    CipherFailed(String),
-    /// Build error
-    #[error("Building Multikey failed: {0}")]
-    BuildFailed(String),
     /// Incorrect Multikey sigil
     #[error("Missing Multikey sigil")]
     MissingSigil,
-    /// Comment error
-    #[error("Comment data unit missing")]
-    MissingComment,
-    */
 }
 
 /// Attributes errors created by this library
@@ -86,46 +72,38 @@ pub enum AttributesError {
 #[derive(Clone, Debug, Eq, Error, PartialEq)]
 #[non_exhaustive]
 pub enum ConversionsError {
-    /// ed25519-dalek error
     /*
-    #[error(transparent)]
-    Ed25519Dalek(#[from] ed25519_dalek::ed25519::Error),
-    */
     /// Sec1 encoding error
     #[error(transparent)]
     Sec1(#[from] sec1::Error),
-    /// Ssh key error
-    #[error(transparent)]
-    SshKey(#[from] ssh_key::Error),
-    /// Error with the key codec
-    #[error("Unsupported key codec: {0}")]
-    UnsupportedCodec(multicodec::Codec),
-    /// Error converting from ssh keys
-    #[error("Unsupported SSH key algorithm: {0}")]
-    UnsupportedAlgorithm(String),
     /// Fingerprint error
     #[error("Fingerprint error: {0}")]
     FingerprintFailed(String),
     /// Public key operation failure
     #[error("Public key error: {0}")]
     PublicKeyFailure(String),
-    /// Private key operation failure
-    #[error("Secret key error: {0}")]
-    SecretKeyFailure(String),
     /// Not a secret key
     #[error("Not a secret key {0}")]
     NotSecretKey(multicodec::codec::Codec),
+    */
+    /// Ssh key error
+    #[error(transparent)]
+    SshKey(#[from] ssh_key::Error),
+    /// Private key operation failure
+    #[error("Secret key error: {0}")]
+    SecretKeyFailure(String),
+    /// Error converting from ssh keys
+    #[error("Unsupported SSH key algorithm: {0}")]
+    UnsupportedAlgorithm(String),
+    /// Error with the key codec
+    #[error("Unsupported key codec: {0}")]
+    UnsupportedCodec(multicodec::Codec),
 }
 
 /// Cipher errors created by this library
 #[derive(Clone, Debug, Eq, Error, PartialEq)]
 #[non_exhaustive]
 pub enum CipherError {
-    /*
-    /// ed25519-dalek error
-    #[error(transparent)]
-    Ed25519Dalek(#[from] ed25519_dalek::ed25519::Error),
-    */
     /// Error with the cipher codec
     #[error("Unsupported cipher codec: {0}")]
     UnsupportedCodec(multicodec::Codec),

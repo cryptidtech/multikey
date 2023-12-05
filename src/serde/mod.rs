@@ -66,7 +66,7 @@ mod tests {
         assert_tokens(
             &pk.readable(),
             &[Token::BorrowedStr(
-                "zEziadMNze7CK3vvX42ggkW9RJ57g6x2rPDSMDrhvc1x1JLqjsi2B2XE5FKYbf85",
+                "zVCYiTqf3RfiqqE4RxExy5XEvCWJKnHH4P67PLC1VuAuA1N8X1qQhM3Y3Bp1xmTQ5",
             )],
         );
     }
@@ -398,7 +398,7 @@ mod tests {
         };
 
         // try to get the associated public key
-        let mk1 = BaseEncoded::new_base(Base::Base58Btc, pk);
+        let mk1 = BaseEncoded::new(Base::Base58Btc, pk);
         let mk2 = EncodedMultikey::try_from(mk1.to_string().as_str()).unwrap();
 
         assert_eq!(mk1, mk2);

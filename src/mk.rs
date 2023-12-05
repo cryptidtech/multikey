@@ -64,6 +64,8 @@ impl EncodingInfo for Multikey {
 impl Into<Vec<u8>> for Multikey {
     fn into(self) -> Vec<u8> {
         let mut v = Vec::default();
+        // add in the sigil
+        v.append(&mut SIGIL.into());
         // add in the key codec
         v.append(&mut self.codec.clone().into());
         // add in the comment
@@ -92,8 +94,13 @@ impl<'a> TryDecodeFrom<'a> for Multikey {
     type Error = Error;
 
     fn try_decode_from(bytes: &'a [u8]) -> Result<(Self, &'a [u8]), Self::Error> {
+        // decode the sigil
+        let (sigil, ptr) = Codec::try_decode_from(bytes)?;
+        if sigil != SIGIL {
+            return Err(Error::MissingSigil);
+        }
         // decode the key codec
-        let (codec, ptr) = Codec::try_decode_from(bytes)?;
+        let (codec, ptr) = Codec::try_decode_from(ptr)?;
         // decode the comment
         let (comment, ptr) = Varbytes::try_decode_from(ptr)?;
         let comment = String::from_utf8(comment.to_inner())?;
@@ -370,7 +377,7 @@ impl Builder {
 
     /// build a base encoded multikey
     pub fn try_build_encoded(self) -> Result<EncodedMultikey, Error> {
-        Ok(BaseEncoded::new_base(
+        Ok(BaseEncoded::new(
             self.base_encoding
                 .unwrap_or_else(|| Multikey::preferred_encoding()),
             self.try_build()?,
@@ -406,7 +413,7 @@ mod tests {
             .try_build()
             .unwrap();
         let v: Vec<u8> = mk.into();
-        assert_eq!(46, v.len());
+        assert_eq!(47, v.len());
     }
 
     #[test]
@@ -558,7 +565,7 @@ mod tests {
 
     #[test]
     fn test_pub_from_string() {
-        let s = "zStED1x68678kuvRiQFSoX1Ey46kM6v7eAGMQ6sWdS3mFcfypfpxaBXBJ2z5LzRc".to_string();
+        let s = "zVQSE6EFkZ7inH63w9bBj9jtkj1wL8LHrQ3mW1P9db6JBLnf3aEaesMak9p8Jinmb".to_string();
         let mk = EncodedMultikey::try_from(s.as_str()).unwrap();
         let attr = attributes_view(&mk).unwrap();
         assert_eq!(mk.codec(), Codec::Ed25519Pub);
@@ -573,7 +580,7 @@ mod tests {
 
     #[test]
     fn test_priv_from_string() {
-        let s = "bqataq5dfon2ca23fpeaqcic6hknu5dt47grqeiax2u5w7oged7azvmtyyyks6gx5bnbg37oeum"
+        let s = "bhkacmcdumvzxiidlmv4qcaja5nk775jrjosqisq42b45vfsxzkah2753vhkjzzg3jdteo2zqrp2a"
             .to_string();
         let mk = EncodedMultikey::try_from(s.as_str()).unwrap();
         let attr = attributes_view(&mk).unwrap();
@@ -589,7 +596,7 @@ mod tests {
 
     #[test]
     fn test_pub_from_vec() {
-        let b = hex::decode("ed010874657374206b657901012065dd7e05798bbb7c7cb886bfc5a79156547901c28df3ede9d1192191f77b1e96").unwrap();
+        let b = hex::decode("3aed010874657374206b6579010120552da9e68c94a11c75da53e66d269a992647ca6cfabca4283e1fd322cceb75d4").unwrap();
         let mk = Multikey::try_from(b.as_slice()).unwrap();
         let attr = attributes_view(&mk).unwrap();
         assert_eq!(mk.codec(), Codec::Ed25519Pub);
@@ -603,7 +610,7 @@ mod tests {
 
     #[test]
     fn test_priv_from_vec() {
-        let b = hex::decode("80260874657374206b6579010120b2f87e5edc3fedea6f469dc2adb9f809fe23e4f9de1f7b5041886e06d0959100").unwrap();
+        let b = hex::decode("3a80260874657374206b65790101201e0d7193b676e03b2ba4f329c3817d569de404eef2809b7f401111435dcf3f6b").unwrap();
         let mk = Multikey::try_from(b.as_slice()).unwrap();
         let attr = attributes_view(&mk).unwrap();
         assert_eq!(mk.codec(), Codec::Ed25519Priv);
