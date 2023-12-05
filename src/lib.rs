@@ -31,7 +31,7 @@ pub use mk::{Builder, EncodedMultikey, Multikey};
 
 /// Nonce type
 pub mod nonce;
-pub use nonce::Nonce;
+pub use nonce::{EncodedNonce, Nonce};
 
 /// Serde serialization
 #[cfg(feature = "serde")]
