@@ -5,7 +5,7 @@ mod ser;
 #[cfg(test)]
 mod tests {
     use crate::{
-        attributes_view, cipher, cipher_view, conversions_view, kdf, kdf_view, Builder,
+        attributes_view, cipher, cipher_view, conversions_view, kdf, kdf_view, nonce, Builder,
         EncodedMultikey, Multikey,
     };
     use multibase::Base;
@@ -402,5 +402,64 @@ mod tests {
         let mk2 = EncodedMultikey::try_from(mk1.to_string().as_str()).unwrap();
 
         assert_eq!(mk1, mk2);
+    }
+
+    #[test]
+    fn test_nonce_serde_compact() {
+        let bytes = hex::decode("76895272c5ce5c0c72b5ec54944ead739482f87048dbbfc13b873008b31d5995")
+            .unwrap();
+        let n = nonce::Builder::new_from_bytes(&bytes).try_build().unwrap();
+
+        assert_tokens(
+            &n.compact(),
+            &[
+                Token::Tuple { len: 2 },
+                Token::BorrowedBytes(&[0x3b]), // Nonce sigil as varuint
+                Token::BorrowedBytes(&[
+                    // Nonce data as varbytes
+                    32, 118, 137, 82, 114, 197, 206, 92, 12, 114, 181, 236, 84, 148, 78, 173, 115,
+                    148, 130, 248, 112, 72, 219, 191, 193, 59, 135, 48, 8, 179, 29, 89, 149,
+                ]),
+                Token::TupleEnd,
+            ],
+        );
+    }
+
+    #[test]
+    fn test_nonce_serde_encoded_string() {
+        let bytes = hex::decode("76895272c5ce5c0c72b5ec54944ead739482f87048dbbfc13b873008b31d5995")
+            .unwrap();
+        let n = nonce::Builder::new_from_bytes(&bytes)
+            .try_build_encoded()
+            .unwrap();
+
+        assert_tokens(
+            &n.readable(),
+            &[Token::BorrowedStr(
+                "f3b2076895272c5ce5c0c72b5ec54944ead739482f87048dbbfc13b873008b31d5995",
+            )],
+        );
+    }
+
+    #[test]
+    fn test_nonce_serde_readable() {
+        let bytes = hex::decode("76895272c5ce5c0c72b5ec54944ead739482f87048dbbfc13b873008b31d5995")
+            .unwrap();
+        let n = nonce::Builder::new_from_bytes(&bytes).try_build().unwrap();
+
+        assert_tokens(
+            &n.readable(),
+            &[
+                Token::Struct {
+                    name: "nonce",
+                    len: 1,
+                },
+                Token::BorrowedStr("nonce"),
+                Token::BorrowedStr(
+                    "f2076895272c5ce5c0c72b5ec54944ead739482f87048dbbfc13b873008b31d5995",
+                ),
+                Token::StructEnd,
+            ],
+        );
     }
 }

@@ -16,6 +16,9 @@ pub enum Error {
     /// Kdf error
     #[error(transparent)]
     Kdf(#[from] KdfError),
+    /// Nonce error
+    #[error(transparent)]
+    Nonce(#[from] NonceError),
 
     /// Multibase conversion error
     #[error(transparent)]
@@ -72,20 +75,6 @@ pub enum AttributesError {
 #[derive(Clone, Debug, Eq, Error, PartialEq)]
 #[non_exhaustive]
 pub enum ConversionsError {
-    /*
-    /// Sec1 encoding error
-    #[error(transparent)]
-    Sec1(#[from] sec1::Error),
-    /// Fingerprint error
-    #[error("Fingerprint error: {0}")]
-    FingerprintFailed(String),
-    /// Public key operation failure
-    #[error("Public key error: {0}")]
-    PublicKeyFailure(String),
-    /// Not a secret key
-    #[error("Not a secret key {0}")]
-    NotSecretKey(multicodec::codec::Codec),
-    */
     /// Ssh key error
     #[error(transparent)]
     SshKey(#[from] ssh_key::Error),
@@ -158,4 +147,16 @@ pub enum KdfError {
     /// Missing rounds error
     #[error("Missing KDF rounds")]
     MissingRounds,
+}
+
+/// Nonce errors created by this library
+#[derive(Clone, Debug, Eq, Error, PartialEq)]
+#[non_exhaustive]
+pub enum NonceError {
+    /// Missing sigil
+    #[error("Missing Nonce codec")]
+    MissingSigil,
+    /// Missing bytes
+    #[error("Missing Nonce bytes")]
+    MissingBytes,
 }

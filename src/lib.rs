@@ -29,6 +29,10 @@ pub use key_views::{
 pub mod mk;
 pub use mk::{Builder, EncodedMultikey, Multikey};
 
+/// Nonce type
+pub mod nonce;
+pub use nonce::Nonce;
+
 /// Serde serialization
 #[cfg(feature = "serde")]
 pub mod serde;
