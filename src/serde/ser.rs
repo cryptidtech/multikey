@@ -30,8 +30,7 @@ impl ser::Serialize for AttrId {
         if serializer.is_human_readable() {
             serializer.serialize_str(self.as_str())
         } else {
-            let v: Vec<u8> = self.clone().into();
-            serializer.serialize_bytes(v.as_slice())
+            Varbytes(self.clone().into()).serialize(serializer)
         }
     }
 }

@@ -79,8 +79,9 @@ impl<'de> Deserialize<'de> for AttrId {
             let s: &str = Deserialize::deserialize(deserializer)?;
             Ok(AttrId::try_from(s).map_err(|e| Error::custom(e.to_string()))?)
         } else {
-            let b: &[u8] = Deserialize::deserialize(deserializer)?;
-            Ok(AttrId::try_from(b).map_err(|e| Error::custom(e.to_string()))?)
+            let id: Varbytes = Deserialize::deserialize(deserializer)?;
+            Ok(AttrId::try_from(id.to_inner().as_slice())
+                .map_err(|e| Error::custom(e.to_string()))?)
         }
     }
 }

@@ -39,7 +39,7 @@ mod tests {
                 Token::BorrowedBytes(&[8, 116, 101, 115, 116, 32, 107, 101, 121]), // "test key"
                 Token::Seq { len: Some(1) },   // attributes array of (varuint, varbytes)
                 Token::Tuple { len: 2 },
-                Token::BorrowedBytes(&[1]), // AttrId::KeyData
+                Token::BorrowedBytes(&[1, 1]), // AttrId::KeyData
                 Token::BorrowedBytes(&[
                     // public key bytes
                     32, 19, 225, 230, 232, 195, 83, 103, 43, 117, 156, 147, 195, 151, 149, 105, 39,
@@ -168,11 +168,11 @@ mod tests {
                 Token::BorrowedBytes(&[8, 116, 101, 115, 116, 32, 107, 101, 121]), // "test key"
                 Token::Seq { len: Some(10) },
                 Token::Tuple { len: 2 },
-                Token::BorrowedBytes(&[0]), // AttrId::KeyIsEncrypted
+                Token::BorrowedBytes(&[1, 0]), // AttrId::KeyIsEncrypted
                 Token::BorrowedBytes(&[1, 1]),
                 Token::TupleEnd,
                 Token::Tuple { len: 2 },
-                Token::BorrowedBytes(&[1]), // AttrId::KeyData
+                Token::BorrowedBytes(&[1, 1]), // AttrId::KeyData
                 Token::BorrowedBytes(&[
                     48, 183, 169, 40, 223, 101, 104, 191, 108, 190, 204, 46, 30, 154, 254, 184, 53,
                     190, 105, 8, 62, 63, 226, 95, 87, 56, 173, 22, 87, 84, 53, 180, 171, 106, 103,
@@ -180,38 +180,38 @@ mod tests {
                 ]),
                 Token::TupleEnd,
                 Token::Tuple { len: 2 },
-                Token::BorrowedBytes(&[2]), // AttrId::CipherCodec
+                Token::BorrowedBytes(&[1, 2]), // AttrId::CipherCodec
                 Token::BorrowedBytes(&[2, 165, 1]),
                 Token::TupleEnd,
                 Token::Tuple { len: 2 },
-                Token::BorrowedBytes(&[3]), // AttrId::CipherKeyLen
+                Token::BorrowedBytes(&[1, 3]), // AttrId::CipherKeyLen
                 Token::BorrowedBytes(&[1, 32]),
                 Token::TupleEnd,
                 Token::Tuple { len: 2 },
-                Token::BorrowedBytes(&[4]), // AttrId::CipherNonceLen
+                Token::BorrowedBytes(&[1, 4]), // AttrId::CipherNonceLen
                 Token::BorrowedBytes(&[1, 8]),
                 Token::TupleEnd,
                 Token::Tuple { len: 2 },
-                Token::BorrowedBytes(&[5]), // AttrId::CipherNonce
+                Token::BorrowedBytes(&[1, 5]), // AttrId::CipherNonce
                 Token::BorrowedBytes(&[8, 113, 78, 90, 191, 15, 123, 234, 232]),
                 Token::TupleEnd,
                 Token::Tuple { len: 2 },
-                Token::BorrowedBytes(&[6]), // AttrId::KdfCodec
+                Token::BorrowedBytes(&[1, 6]), // AttrId::KdfCodec
                 Token::BorrowedBytes(&[3, 141, 160, 3]),
                 Token::TupleEnd,
                 Token::Tuple { len: 2 },
-                Token::BorrowedBytes(&[7]), // AttrId::KdfSaltLen
+                Token::BorrowedBytes(&[1, 7]), // AttrId::KdfSaltLen
                 Token::BorrowedBytes(&[1, 32]),
                 Token::TupleEnd,
                 Token::Tuple { len: 2 },
-                Token::BorrowedBytes(&[8]), // AttrId::KdfSalt
+                Token::BorrowedBytes(&[1, 8]), // AttrId::KdfSalt
                 Token::BorrowedBytes(&[
                     32, 98, 31, 32, 207, 218, 20, 11, 216, 191, 131, 168, 153, 22, 116, 40, 70, 41,
                     41, 164, 30, 155, 104, 168, 70, 123, 252, 36, 85, 233, 249, 132, 6,
                 ]),
                 Token::TupleEnd,
                 Token::Tuple { len: 2 },
-                Token::BorrowedBytes(&[9]), // AttrId::KdfRounds
+                Token::BorrowedBytes(&[1, 9]), // AttrId::KdfRounds
                 Token::BorrowedBytes(&[1, 10]),
                 Token::TupleEnd,
                 Token::SeqEnd,
