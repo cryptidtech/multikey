@@ -25,7 +25,7 @@ pub mod kdf;
 pub mod key_views;
 pub use key_views::{
     AttrView, CipherAttrView, CipherView, FingerprintView, KdfAttrView, KdfView, KeyConvView,
-    KeyDataView, KeyViews,
+    KeyDataView, KeyViews, SignView, VerifyView,
 };
 
 /// Multikey type and functions

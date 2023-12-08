@@ -1,6 +1,7 @@
 use crate::{Error, Multikey};
 use multicodec::Codec;
 use multihash::Multihash;
+use multisig::Multisig;
 use std::{cell::RefCell, rc::Rc};
 use zeroize::Zeroizing;
 
@@ -64,7 +65,7 @@ pub trait KeyDataView {
 
 ///
 /// The following key operations views are functions that generate new
-/// Multikeys from the viewed Multikey using the parameters passed in.
+/// Multikeys, Multihashes, or Multisigs from the viewed Multikey (self)
 ///
 
 /// trait for encrypting and decrypting Multikeys
@@ -108,6 +109,18 @@ pub trait KeyConvView {
     fn to_public_key(&self) -> Result<Multikey, Error>;
 }
 
+/// trait for digially signing data using a multikey
+pub trait SignView {
+    /// try to create a Multisig by siging the passed-in data with the Multikey
+    fn sign(&self, msg: &[u8], combined: bool) -> Result<Multisig, Error>;
+}
+
+/// trait for verifying digial signatures using a multikey
+pub trait VerifyView {
+    /// try to verify a Multisig using the Multikey
+    fn verify(&self, sig: &Multisig, msg: Option<&[u8]>) -> Result<(), Error>;
+}
+
 /// trait for getting the other views
 pub trait KeyViews {
     /// Provide a read-only view of the basic attributes in the viewed Multikey
@@ -129,4 +142,8 @@ pub trait KeyViews {
     fn kdf_view<'a>(&'a self, kdf: &'a Multikey) -> Result<Rc<RefCell<dyn KdfView + 'a>>, Error>;
     /// Provide an interface to do key conversions from the viewe Multikey
     fn key_conv_view<'a>(&'a self) -> Result<Rc<RefCell<dyn KeyConvView + 'a>>, Error>;
+    /// Provide an interface to sign a message and return a Multisig
+    fn sign_view<'a>(&'a self) -> Result<Rc<RefCell<dyn SignView + 'a>>, Error>;
+    /// Provide an interface to verify a Multisig and optional message
+    fn verify_view<'a>(&'a self) -> Result<Rc<RefCell<dyn VerifyView + 'a>>, Error>;
 }

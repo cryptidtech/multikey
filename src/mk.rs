@@ -2,7 +2,7 @@ use crate::{
     error::{AttributesError, CipherError, ConversionsError, KdfError},
     key_views::{bcrypt, chacha20, ed25519},
     AttrId, AttrView, CipherAttrView, CipherView, Error, FingerprintView, KdfAttrView, KdfView,
-    KeyConvView, KeyDataView, KeyViews,
+    KeyConvView, KeyDataView, KeyViews, SignView, VerifyView,
 };
 
 use multibase::Base;
@@ -235,6 +235,26 @@ impl KeyViews for Multikey {
 
     /// Provide an interface to do key conversions from the viewe Multikey
     fn key_conv_view<'a>(&'a self) -> Result<Rc<RefCell<dyn KeyConvView + 'a>>, Error> {
+        match self.codec {
+            Codec::Ed25519Pub | Codec::Ed25519Priv => {
+                Ok(Rc::new(RefCell::new(ed25519::View::try_from(self)?)))
+            }
+            _ => Err(ConversionsError::UnsupportedCodec(self.codec).into()),
+        }
+    }
+
+    /// Provide an interface to sign a message and return a Multisig
+    fn sign_view<'a>(&'a self) -> Result<Rc<RefCell<dyn SignView + 'a>>, Error> {
+        match self.codec {
+            Codec::Ed25519Pub | Codec::Ed25519Priv => {
+                Ok(Rc::new(RefCell::new(ed25519::View::try_from(self)?)))
+            }
+            _ => Err(ConversionsError::UnsupportedCodec(self.codec).into()),
+        }
+    }
+
+    /// Provide an interface to verify a Multisig and optional message
+    fn verify_view<'a>(&'a self) -> Result<Rc<RefCell<dyn VerifyView + 'a>>, Error> {
         match self.codec {
             Codec::Ed25519Pub | Codec::Ed25519Priv => {
                 Ok(Rc::new(RefCell::new(ed25519::View::try_from(self)?)))
@@ -607,6 +627,63 @@ mod tests {
 
         // ensure the round trip worked
         assert_eq!(mk1, mk3);
+    }
+
+    #[test]
+    fn test_signing_detached_roundtrip() {
+        let mut rng = rand::rngs::OsRng::default();
+        let mk = Builder::new_from_random_bytes(Codec::Ed25519Priv, &mut rng)
+            .unwrap()
+            .with_comment("test key")
+            .try_build()
+            .unwrap();
+
+        let attr = mk.attr_view().unwrap();
+        assert!(!attr.borrow().is_encrypted());
+        assert!(!attr.borrow().is_public_key());
+        assert!(attr.borrow().is_secret_key());
+        let kd = mk.key_data_view().unwrap();
+        assert!(kd.borrow().key_bytes().is_ok());
+        assert!(kd.borrow().secret_bytes().is_ok());
+
+        let msg = hex::decode("8bb78be51ac7cc98f44e38947ff8a128764ec039b89687a790dfa8444ba97682")
+            .unwrap();
+
+        let signmk = mk.sign_view().unwrap();
+        let signature = signmk.borrow().sign(msg.as_slice(), false).unwrap();
+
+        let verifymk = mk.verify_view().unwrap();
+        assert!(verifymk.borrow().verify(&signature, Some(&msg)).is_ok());
+    }
+
+    #[test]
+    fn test_signing_merged_roundtrip() {
+        let mut rng = rand::rngs::OsRng::default();
+        let mk = Builder::new_from_random_bytes(Codec::Ed25519Priv, &mut rng)
+            .unwrap()
+            .with_comment("test key")
+            .try_build()
+            .unwrap();
+
+        let attr = mk.attr_view().unwrap();
+        assert!(!attr.borrow().is_encrypted());
+        assert!(!attr.borrow().is_public_key());
+        assert!(attr.borrow().is_secret_key());
+        let kd = mk.key_data_view().unwrap();
+        assert!(kd.borrow().key_bytes().is_ok());
+        assert!(kd.borrow().secret_bytes().is_ok());
+
+        let msg = hex::decode("8bb78be51ac7cc98f44e38947ff8a128764ec039b89687a790dfa8444ba97682")
+            .unwrap();
+
+        let signmk = mk.sign_view().unwrap();
+        let signature = signmk.borrow().sign(msg.as_slice(), true).unwrap();
+
+        // make sure the message is stored correctly in the signature
+        assert_eq!(signature.message, msg);
+
+        let verifymk = mk.verify_view().unwrap();
+        assert!(verifymk.borrow().verify(&signature, None).is_ok());
     }
 
     #[test]

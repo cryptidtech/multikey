@@ -19,6 +19,12 @@ pub enum Error {
     /// Nonce error
     #[error(transparent)]
     Nonce(#[from] NonceError),
+    /// Sign error
+    #[error(transparent)]
+    Sign(#[from] SignError),
+    /// Verify error
+    #[error(transparent)]
+    Verify(#[from] VerifyError),
 
     /// Multibase conversion error
     #[error(transparent)]
@@ -29,6 +35,9 @@ pub enum Error {
     /// Multiutil error
     #[error(transparent)]
     Multiutil(#[from] multiutil::Error),
+    /// Multisig error
+    #[error(transparent)]
+    Multisig(#[from] multisig::Error),
     /// Multitrait error
     #[error(transparent)]
     Multitrait(#[from] multitrait::Error),
@@ -78,7 +87,10 @@ pub enum ConversionsError {
     /// Ssh key error
     #[error(transparent)]
     SshKey(#[from] ssh_key::Error),
-    /// Private key operation failure
+    /// Public key operation failure
+    #[error("Public key error: {0}")]
+    PublicKeyFailure(String),
+    /// Secret key operation failure
     #[error("Secret key error: {0}")]
     SecretKeyFailure(String),
     /// Error converting from ssh keys
@@ -159,4 +171,31 @@ pub enum NonceError {
     /// Missing bytes
     #[error("Missing Nonce bytes")]
     MissingBytes,
+}
+
+/// Sign errors created by this library
+#[derive(Clone, Debug, Eq, Error, PartialEq)]
+#[non_exhaustive]
+pub enum SignError {
+    /// Not a signing key
+    #[error("Not a signing key")]
+    NotSigningKey,
+    /// Signing failed
+    #[error("Signing failed: {0}")]
+    SigningFailed(String),
+}
+
+/// Verify errors created by this library
+#[derive(Clone, Debug, Eq, Error, PartialEq)]
+#[non_exhaustive]
+pub enum VerifyError {
+    /// Missing signature
+    #[error("Missing signature")]
+    MissingSignature,
+    /// Missing message
+    #[error("Missing message")]
+    MissingMessage,
+    /// Bad signature
+    #[error("Bad signature: {0}")]
+    BadSignature(String),
 }

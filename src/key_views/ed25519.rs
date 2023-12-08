@@ -1,11 +1,14 @@
 use crate::{
-    error::{AttributesError, CipherError, ConversionsError, KdfError},
+    error::{AttributesError, CipherError, ConversionsError, KdfError, SignError, VerifyError},
     AttrId, AttrView, Builder, CipherAttrView, Error, FingerprintView, KdfAttrView, KeyConvView,
-    KeyDataView, KeyViews, Multikey,
+    KeyDataView, KeyViews, Multikey, SignView, VerifyView,
 };
-use ed25519_dalek::{SigningKey, SECRET_KEY_LENGTH};
+use ed25519_dalek::{
+    Signature, Signer, SigningKey, VerifyingKey, PUBLIC_KEY_LENGTH, SECRET_KEY_LENGTH,
+};
 use multicodec::Codec;
 use multihash::{mh, Multihash};
+use multisig::{ms, Multisig};
 use multitrait::TryDecodeFrom;
 use multiutil::Varuint;
 use zeroize::Zeroizing;
@@ -186,12 +189,108 @@ impl<'a> KeyConvView for View<'a> {
             .map_err(|_| {
                 ConversionsError::SecretKeyFailure("failed to get secret key bytes".to_string())
             })?;
-        let private_key = SigningKey::from_bytes(&bytes);
+        let secret_key = SigningKey::from_bytes(&bytes);
         // get the public key and build a Multikey out of it
-        let public_key = private_key.verifying_key();
+        let public_key = secret_key.verifying_key();
         Builder::new(Codec::Ed25519Pub)
             .with_comment(&self.mk.comment)
             .with_key_bytes(public_key.as_bytes())
             .try_build()
+    }
+}
+
+impl<'a> SignView for View<'a> {
+    /// try to create a Multisig by siging the passed-in data with the Multikey
+    fn sign(&self, msg: &[u8], combined: bool) -> Result<Multisig, Error> {
+        let attr = self.mk.attr_view()?;
+        if !attr.borrow().is_secret_key() {
+            return Err(SignError::NotSigningKey.into());
+        }
+
+        // get the secret key bytes
+        let secret_bytes = {
+            let kd = self.mk.key_data_view()?;
+            let secret_bytes = kd.borrow().secret_bytes()?;
+            secret_bytes
+        };
+
+        let secret_key = {
+            // build an Ed25519 signing key so that we can derive the verifying key
+            let bytes: [u8; SECRET_KEY_LENGTH] = secret_bytes.as_slice()[..SECRET_KEY_LENGTH]
+                .try_into()
+                .map_err(|_| {
+                    ConversionsError::SecretKeyFailure("failed to get secret key bytes".to_string())
+                })?;
+            let secret_key = SigningKey::from_bytes(&bytes);
+            secret_key
+        };
+
+        // sign the data
+        let signature = secret_key
+            .try_sign(msg)
+            .map_err(|e| SignError::SigningFailed(e.to_string()))?;
+
+        let mut ms = ms::Builder::new(Codec::Ed25519Pub).with_signature_bytes(signature.to_vec());
+        if combined {
+            ms = ms.with_message_bytes(msg);
+        }
+        Ok(ms.try_build()?)
+    }
+}
+
+impl<'a> VerifyView for View<'a> {
+    /// try to verify a Multisig using the Multikey
+    fn verify(&self, multisig: &Multisig, msg: Option<&[u8]>) -> Result<(), Error> {
+        let attr = self.mk.attr_view()?;
+        let pubmk = if attr.borrow().is_secret_key() {
+            let kc = self.mk.key_conv_view()?;
+            let mk = kc.borrow().to_public_key()?;
+            mk
+        } else {
+            self.mk.clone()
+        };
+
+        // get the secret key bytes
+        let key_bytes = {
+            let kd = pubmk.key_data_view()?;
+            let key_bytes = kd.borrow().key_bytes()?;
+            key_bytes
+        };
+
+        // build an Ed25519 verifying key so that we can derive the verifying key
+        let bytes: [u8; PUBLIC_KEY_LENGTH] = key_bytes.as_slice()[..PUBLIC_KEY_LENGTH]
+            .try_into()
+            .map_err(|_| {
+            ConversionsError::PublicKeyFailure("failed to get public key bytes".to_string())
+        })?;
+
+        // create the verifying key
+        let verifying_key = VerifyingKey::from_bytes(&bytes)
+            .map_err(|e| ConversionsError::PublicKeyFailure(e.to_string()))?;
+
+        // get the signature data
+        let sig = multisig
+            .payloads
+            .get(0)
+            .ok_or_else(|| VerifyError::MissingSignature)?;
+
+        // create the signature
+        let sig = Signature::from_slice(sig.as_slice())
+            .map_err(|e| VerifyError::BadSignature(e.to_string()))?;
+
+        // get the message
+        let msg = if let Some(msg) = msg {
+            msg
+        } else if multisig.message.len() > 0 {
+            multisig.message.as_slice()
+        } else {
+            return Err(VerifyError::MissingMessage.into());
+        };
+
+        verifying_key
+            .verify_strict(msg, &sig)
+            .map_err(|e| VerifyError::BadSignature(e.to_string()))?;
+
+        Ok(())
     }
 }
