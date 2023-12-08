@@ -89,7 +89,7 @@ mod tests {
             &[
                 Token::Struct {
                     name: "multikey",
-                    len: 4,
+                    len: 3,
                 },
                 Token::BorrowedStr("codec"),
                 Token::BorrowedStr("ed25519-pub"),
@@ -270,7 +270,7 @@ mod tests {
             &[
                 Token::Struct {
                     name: "multikey",
-                    len: 4,
+                    len: 3,
                 },
                 Token::BorrowedStr("codec"),
                 Token::BorrowedStr("ed25519-priv"),

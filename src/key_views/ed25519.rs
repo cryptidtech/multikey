@@ -8,7 +8,7 @@ use ed25519_dalek::{
 };
 use multicodec::Codec;
 use multihash::{mh, Multihash};
-use multisig::{ms, Multisig};
+use multisig::{ms, Multisig, SigViews};
 use multitrait::TryDecodeFrom;
 use multiutil::Varuint;
 use zeroize::Zeroizing;
@@ -232,7 +232,7 @@ impl<'a> SignView for View<'a> {
 
         let mut ms = ms::Builder::new(Codec::Ed25519Pub).with_signature_bytes(signature.to_vec());
         if combined {
-            ms = ms.with_message_bytes(msg);
+            ms = ms.with_message_bytes(&msg);
         }
         Ok(ms.try_build()?)
     }
@@ -269,10 +269,11 @@ impl<'a> VerifyView for View<'a> {
             .map_err(|e| ConversionsError::PublicKeyFailure(e.to_string()))?;
 
         // get the signature data
-        let sig = multisig
-            .payloads
-            .get(0)
-            .ok_or_else(|| VerifyError::MissingSignature)?;
+        let sv = multisig.sig_data_view()?;
+        let sig = sv
+            .borrow()
+            .sig_bytes()
+            .map_err(|_| VerifyError::MissingSignature)?;
 
         // create the signature
         let sig = Signature::from_slice(sig.as_slice())

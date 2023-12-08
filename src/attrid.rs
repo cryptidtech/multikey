@@ -3,7 +3,7 @@ use multitrait::{EncodeInto, TryDecodeFrom};
 use std::fmt;
 
 /// enum of attribute identifiers. this is here to avoid collisions between
-/// different codecs and encryption schemes. these is the common set of
+/// different codecs and encryption schemes. these are the common set of
 /// attribute identifiers use in Multikeys
 #[repr(u8)]
 #[derive(Clone, Copy, Hash, Ord, PartialOrd, PartialEq, Eq)]

@@ -69,6 +69,7 @@ impl<'de> Deserialize<'de> for Nonce {
         }
     }
 }
+
 /// Deserialize instance of [`crate::AttrId`]
 impl<'de> Deserialize<'de> for AttrId {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
@@ -111,7 +112,7 @@ impl<'de> Deserialize<'de> for Multikey {
                 fmt.write_str("struct Multikey")
             }
 
-            fn visit_map<V>(self, mut map: V) -> Result<Multikey, V::Error>
+            fn visit_map<V>(self, mut map: V) -> Result<Self::Value, V::Error>
             where
                 V: MapAccess<'de>,
             {

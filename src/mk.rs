@@ -500,8 +500,11 @@ impl Builder {
         let codec = self.codec;
         let comment = self.comment.unwrap_or_default();
         let mut attributes = Attributes::new();
-        let key_data = self.key_bytes.ok_or(AttributesError::MissingKey)?.to_vec();
-        attributes.insert(AttrId::KeyData.into(), key_data.into());
+        let key_data = self
+            .key_bytes
+            .ok_or_else(|| AttributesError::MissingKey)?
+            .to_vec();
+        attributes.insert(AttrId::KeyData, key_data.into());
         Ok(Multikey {
             codec,
             comment,

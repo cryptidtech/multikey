@@ -53,7 +53,7 @@ impl ser::Serialize for Multikey {
                 })
                 .collect();
 
-            let mut ss = serializer.serialize_struct(mk::SIGIL.as_str(), 4)?;
+            let mut ss = serializer.serialize_struct(mk::SIGIL.as_str(), 3)?;
             ss.serialize_field("codec", &self.codec)?;
             ss.serialize_field("comment", &self.comment)?;
             ss.serialize_field("attributes", &attributes)?;
