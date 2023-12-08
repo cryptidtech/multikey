@@ -99,7 +99,7 @@ impl Builder {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{attributes_view, cipher, kdf_attributes_view, kdf_view};
+    use crate::{cipher, KeyViews};
 
     #[test]
     fn test_bcrypt() {
@@ -118,26 +118,26 @@ mod tests {
             .unwrap();
 
         // get the kdf view
-        let kdf = kdf_view(&kdfmk).unwrap();
+        let kdf = ciphermk.kdf_view(&kdfmk).unwrap();
         // derive a key from the passphrase and add it to the cipher multikey
         let ciphermk = kdf
             .borrow()
-            .derive_key(&ciphermk, b"for great justice, move every zig!")
+            .derive_key(b"for great justice, move every zig!")
             .unwrap();
 
-        let kattr = kdf_attributes_view(&ciphermk).unwrap();
+        let kattr = ciphermk.kdf_attr_view().unwrap();
         assert_eq!(Codec::BcryptPbkdf, kattr.borrow().kdf_codec().unwrap());
         assert_eq!(salt, kattr.borrow().salt_bytes().unwrap().to_vec());
         assert_eq!(salt.len(), kattr.borrow().salt_length().unwrap());
         assert_eq!(10, kattr.borrow().rounds().unwrap());
 
-        let attr = attributes_view(&ciphermk).unwrap();
+        let kd = ciphermk.key_data_view().unwrap();
         assert_eq!(
             vec![
                 119, 109, 13, 221, 140, 26, 88, 179, 135, 17, 119, 25, 176, 99, 5, 2, 203, 25, 82,
                 16, 161, 246, 176, 139, 8, 101, 174, 7, 240, 67, 237, 107
             ],
-            attr.borrow().secret_bytes().unwrap().to_vec()
+            kd.borrow().secret_bytes().unwrap().to_vec()
         );
     }
 }

@@ -76,41 +76,41 @@ a key derived using the Bcrypt PBKDF function with 10 rounds and a 32-byte salt
 value:
 
 ```
-0x3a                -- varuint, multikey sigil 
-0x8026              -- varuint, Ed25519 private key codec 
-0x08                -- varuint, length of comment 
-    "test key"      -- 8 octets of utf-8 comment data
-0x0a                -- varuint, 10 attributes
-    0x00            -- varuint, AttrId::KeyIsEncrypted
-        0x01        -- varuint, attribute length
-            0x01    -- 1 octet, bool, it is encrypted!
-    0x01            -- varuint, AttrId::KeyData
-        0x30        -- varuint, attribute length
-            [48 octets] -- ciphertext
-    0x02            -- varuint, AttrId::CipherCodec
-        0x02        -- varuint, attribute length
-            0xa501  -- varuint, ChaCha20-Poly1305 codec
-    0x03            -- varuint, AttrId::CipherKeyLen
-        0x01        -- varuint, attribute length
-            0x20    -- 1 octet, 32 byte key length
-    0x04            -- varuint, AttrId::CipherNonceLen
-        0x01        -- varuint, attribute length
-            0x08    -- 1 octet, 8 byte nonce length
-    0x05            -- varuint, AttrId::CipherNonce
-        0x08        -- varuint, attribute length
-            [8 octets] -- nonce
-    0x06            -- varuint, AttrId::KdfCodec
-        0x03        -- varuint, attribute length
-            0x8da003 -- varuint, Bcrypt KDF codec
-    0x07            -- varuint, AttrId::KdfSaltLen
-        0x01        -- varuint, attribute length
-            0x20    -- varuint, 32 byte salt length
-    0x08            -- varuint, AttrId::KdfSalt
-        0x20        -- varuint, attribute length
-            [32 octets] -- salt
-    0x09            -- varuint, AttrId::KdfRounds
-        0x01        -- varuint, attribute length
-            0x0a    -- varuint, 10 kdf rounds
+3a                  -- varuint, multikey sigil 
+[80 26]             -- varuint, Ed25519 private key codec 
+08                  -- varuint, length of comment 
+  "test key"        -- 8 octets of utf-8 comment data
+0a                  -- varuint, 10 attributes
+  00                -- varuint, AttrId::KeyIsEncrypted
+    01              -- varuint, attribute length
+      [01]          -- true, it is encrypted!
+  01                -- varuint, AttrId::KeyData
+    30              -- varuint, attribute length
+      [48 octets]   -- ciphertext
+  02                -- varuint, AttrId::CipherCodec
+    02              -- varuint, attribute length
+      [a5 01]       -- varuint, ChaCha20-Poly1305 codec
+  03                -- varuint, AttrId::CipherKeyLen
+    01              -- varuint, attribute length
+      [20]          -- 32 byte key length
+  04                -- varuint, AttrId::CipherNonceLen
+    01              -- varuint, attribute length
+      [08]          -- 1 octet, 8 byte nonce length
+  05                -- varuint, AttrId::CipherNonce
+    08              -- varuint, attribute length
+      [8 octets]    -- nonce
+  06                -- varuint, AttrId::KdfCodec
+    03              -- varuint, attribute length
+      [8d a0 03]    -- varuint, Bcrypt KDF codec
+  07                -- varuint, AttrId::KdfSaltLen
+    01              -- varuint, attribute length
+      [20]          -- varuint, 32 byte salt length
+  08                -- varuint, AttrId::KdfSalt
+    20              -- varuint, attribute length
+      [32 octets]   -- salt
+  09                -- varuint, AttrId::KdfRounds
+    01              -- varuint, attribute length
+      [0a]          -- varuint, 10 kdf rounds
 ```
 
 In this example the encoding starts off with the multikey sigil (`0x3a`)

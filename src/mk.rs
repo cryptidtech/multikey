@@ -1,7 +1,8 @@
 use crate::{
-    attributes_view,
-    error::{AttributesError, ConversionsError},
-    AttrId, Error,
+    error::{AttributesError, CipherError, ConversionsError, KdfError},
+    key_views::{bcrypt, chacha20, ed25519},
+    AttrId, AttrView, CipherAttrView, CipherView, Error, FingerprintView, KdfAttrView, KdfView,
+    KeyConvView, KeyDataView, KeyViews,
 };
 
 use multibase::Base;
@@ -14,7 +15,7 @@ use ssh_key::{
     public::{EcdsaPublicKey, KeyData},
     EcdsaCurve, PrivateKey, PublicKey,
 };
-use std::{collections::BTreeMap, fmt};
+use std::{cell::RefCell, collections::BTreeMap, fmt, rc::Rc};
 use zeroize::Zeroizing;
 
 /// the multicodec sigil for multikey
@@ -137,7 +138,7 @@ impl<'a> TryDecodeFrom<'a> for Multikey {
 impl fmt::Debug for Multikey {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         // get an attributes view on the key
-        let attr = attributes_view(&self).map_err(|_| fmt::Error)?;
+        let attr = self.attr_view().map_err(|_| fmt::Error)?;
 
         write!(
             f,
@@ -150,6 +151,96 @@ impl fmt::Debug for Multikey {
                 "false"
             }
         )
+    }
+}
+
+impl KeyViews for Multikey {
+    /// Provide a read-only view of the basic attributes in the viewed Multikey
+    fn attr_view<'a>(&'a self) -> Result<Rc<RefCell<dyn AttrView + 'a>>, Error> {
+        match self.codec {
+            Codec::Ed25519Pub | Codec::Ed25519Priv => {
+                Ok(Rc::new(RefCell::new(ed25519::View::try_from(self)?)))
+            }
+            Codec::Chacha20Poly1305 => Ok(Rc::new(RefCell::new(chacha20::View::try_from(self)?))),
+            _ => Err(AttributesError::UnsupportedCodec(self.codec).into()),
+        }
+    }
+
+    /// Provide a read-only view of the cipher attributes in the viewed Multikey
+    fn cipher_attr_view<'a>(&'a self) -> Result<Rc<RefCell<dyn CipherAttrView + 'a>>, Error> {
+        let codec = if let Some(bytes) = self.attributes.get(&AttrId::CipherCodec) {
+            Codec::try_from(bytes.as_slice())?
+        } else {
+            self.codec
+        };
+        match codec {
+            Codec::Chacha20Poly1305 => Ok(Rc::new(RefCell::new(chacha20::View::try_from(self)?))),
+            _ => Err(CipherError::UnsupportedCodec(self.codec).into()),
+        }
+    }
+
+    /// Provide a read-only view of the kdf attributes in the viewed Multikey
+    fn kdf_attr_view<'a>(&'a self) -> Result<Rc<RefCell<dyn KdfAttrView + 'a>>, Error> {
+        let codec = if let Some(bytes) = self.attributes.get(&AttrId::KdfCodec) {
+            Codec::try_from(bytes.as_slice())?
+        } else {
+            self.codec
+        };
+        match codec {
+            Codec::BcryptPbkdf => Ok(Rc::new(RefCell::new(bcrypt::View::try_from(self)?))),
+            _ => Err(KdfError::UnsupportedCodec(self.codec).into()),
+        }
+    }
+
+    /// Provide a read-only view to key data in the viewed Multikey
+    fn key_data_view<'a>(&'a self) -> Result<Rc<RefCell<dyn KeyDataView + 'a>>, Error> {
+        match self.codec {
+            Codec::Ed25519Pub | Codec::Ed25519Priv => {
+                Ok(Rc::new(RefCell::new(ed25519::View::try_from(self)?)))
+            }
+            Codec::Chacha20Poly1305 => Ok(Rc::new(RefCell::new(chacha20::View::try_from(self)?))),
+            _ => Err(ConversionsError::UnsupportedCodec(self.codec).into()),
+        }
+    }
+
+    /// Provide an interface to do encryption/decryption of the viewed Multikey
+    fn cipher_view<'a>(
+        &'a self,
+        cipher: &'a Multikey,
+    ) -> Result<Rc<RefCell<dyn CipherView + 'a>>, Error> {
+        match cipher.codec {
+            Codec::Chacha20Poly1305 => Ok(Rc::new(RefCell::new(chacha20::View::new(self, cipher)))),
+            _ => Err(CipherError::UnsupportedCodec(self.codec).into()),
+        }
+    }
+
+    /// Provide an interface to do key conversions from the viewe Multikey
+    fn fingerprint_view<'a>(&'a self) -> Result<Rc<RefCell<dyn FingerprintView + 'a>>, Error> {
+        match self.codec {
+            Codec::Ed25519Pub | Codec::Ed25519Priv => {
+                Ok(Rc::new(RefCell::new(ed25519::View::try_from(self)?)))
+            }
+            Codec::Chacha20Poly1305 => Ok(Rc::new(RefCell::new(chacha20::View::try_from(self)?))),
+            _ => Err(ConversionsError::UnsupportedCodec(self.codec).into()),
+        }
+    }
+
+    /// Provide an interface to do kdf operations from the viewed Multikey
+    fn kdf_view<'a>(&'a self, kdf: &'a Multikey) -> Result<Rc<RefCell<dyn KdfView + 'a>>, Error> {
+        match kdf.codec {
+            Codec::BcryptPbkdf => Ok(Rc::new(RefCell::new(bcrypt::View::new(self, kdf)))),
+            _ => Err(KdfError::UnsupportedCodec(self.codec).into()),
+        }
+    }
+
+    /// Provide an interface to do key conversions from the viewe Multikey
+    fn key_conv_view<'a>(&'a self) -> Result<Rc<RefCell<dyn KeyConvView + 'a>>, Error> {
+        match self.codec {
+            Codec::Ed25519Pub | Codec::Ed25519Priv => {
+                Ok(Rc::new(RefCell::new(ed25519::View::try_from(self)?)))
+            }
+            _ => Err(ConversionsError::UnsupportedCodec(self.codec).into()),
+        }
     }
 }
 
@@ -402,7 +493,7 @@ impl Builder {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{attributes_view, cipher, cipher_view, kdf, kdf_view, key_views};
+    use crate::{cipher, kdf, key_views};
 
     #[test]
     fn test_simple_random() {
@@ -438,12 +529,13 @@ mod tests {
             .try_build()
             .unwrap();
 
-        let attr = attributes_view(&mk1).unwrap();
-        assert_eq!(false, attr.borrow().is_encrypted());
-        assert_eq!(false, attr.borrow().is_public_key());
-        assert_eq!(true, attr.borrow().is_secret_key());
-        assert!(attr.borrow().key_bytes().is_ok());
-        assert!(attr.borrow().secret_bytes().is_ok());
+        let attr = mk1.attr_view().unwrap();
+        assert!(!attr.borrow().is_encrypted());
+        assert!(!attr.borrow().is_public_key());
+        assert!(attr.borrow().is_secret_key());
+        let kd = mk1.key_data_view().unwrap();
+        assert!(kd.borrow().key_bytes().is_ok());
+        assert!(kd.borrow().secret_bytes().is_ok());
 
         let mk2 = {
             let kdfmk = kdf::Builder::new(Codec::BcryptPbkdf)
@@ -451,32 +543,34 @@ mod tests {
                 .with_rounds(10)
                 .try_build()
                 .unwrap();
-
             let ciphermk = cipher::Builder::new(Codec::Chacha20Poly1305)
                 .with_random_nonce(key_views::chacha20::NONCE_LENGTH, &mut rng)
                 .try_build()
                 .unwrap();
-
-            // get the kdf view
-            let kdf = kdf_view(&kdfmk).unwrap();
+            // get the kdf view on the cipher multikey so we can generate a
+            // new cipher multikey with the same parameters and the generated key
+            let kdf = ciphermk.kdf_view(&kdfmk).unwrap();
             // derive a key from the passphrase and add it to the cipher multikey
             let ciphermk = kdf
                 .borrow()
-                .derive_key(&ciphermk, b"for great justice, move every zig!")
+                .derive_key(b"for great justice, move every zig!")
                 .unwrap();
-            // get the cipher view
-            let cipher = cipher_view(&ciphermk).unwrap();
+            // get the cipher view on the unencrypted ed25519 secret key so
+            // that we can create a new ed25519 secret key with an encrypted
+            // key and the kdf and cipher attributes and data
+            let cipher = mk1.cipher_view(&ciphermk).unwrap();
             // encrypt the multikey using the cipher
-            let mk = cipher.borrow().encrypt(&mk1).unwrap();
+            let mk = cipher.borrow().encrypt().unwrap();
             mk
         };
 
-        let attr = attributes_view(&mk2).unwrap();
+        let attr = mk2.attr_view().unwrap();
         assert_eq!(true, attr.borrow().is_encrypted());
         assert_eq!(false, attr.borrow().is_public_key());
         assert_eq!(true, attr.borrow().is_secret_key());
-        assert!(attr.borrow().key_bytes().is_ok());
-        assert!(attr.borrow().secret_bytes().is_err()); // secret bytes are encrypted
+        let kd = mk2.key_data_view().unwrap();
+        assert!(kd.borrow().key_bytes().is_ok());
+        assert!(kd.borrow().secret_bytes().is_err()); // encrypted key
 
         let mk3 = {
             let kdfmk = kdf::Builder::default()
@@ -484,33 +578,32 @@ mod tests {
                 .unwrap()
                 .try_build()
                 .unwrap();
-
             let ciphermk = cipher::Builder::default()
                 .try_from_multikey(&mk2)
                 .unwrap()
                 .try_build()
                 .unwrap();
-
             // get the kdf view
-            let kdf = kdf_view(&kdfmk).unwrap();
+            let kdf = ciphermk.kdf_view(&kdfmk).unwrap();
             // derive a key from the passphrase and add it to the cipher multikey
             let ciphermk = kdf
                 .borrow()
-                .derive_key(&ciphermk, b"for great justice, move every zig!")
+                .derive_key(b"for great justice, move every zig!")
                 .unwrap();
             // get the cipher view
-            let cipher = cipher_view(&ciphermk).unwrap();
+            let cipher = mk2.cipher_view(&ciphermk).unwrap();
             // decrypt the multikey using the cipher
-            let mk = cipher.borrow().decrypt(&mk2).unwrap();
+            let mk = cipher.borrow().decrypt().unwrap();
             mk
         };
 
-        let attr = attributes_view(&mk3).unwrap();
+        let attr = mk3.attr_view().unwrap();
         assert_eq!(false, attr.borrow().is_encrypted());
         assert_eq!(false, attr.borrow().is_public_key());
         assert_eq!(true, attr.borrow().is_secret_key());
-        assert!(attr.borrow().key_bytes().is_ok());
-        assert!(attr.borrow().secret_bytes().is_ok());
+        let kd = mk3.key_data_view().unwrap();
+        assert!(kd.borrow().key_bytes().is_ok());
+        assert!(kd.borrow().secret_bytes().is_ok());
 
         // ensure the round trip worked
         assert_eq!(mk1, mk3);
@@ -530,14 +623,15 @@ mod tests {
             .try_build()
             .unwrap();
 
-        let attr = attributes_view(&mk).unwrap();
+        let attr = mk.attr_view().unwrap();
         assert_eq!(mk.codec, Codec::Ed25519Pub);
         assert_eq!(mk.comment, "test key".to_string());
         assert_eq!(false, attr.borrow().is_encrypted());
         assert_eq!(true, attr.borrow().is_public_key());
         assert_eq!(false, attr.borrow().is_secret_key());
-        assert!(attr.borrow().key_bytes().is_ok());
-        assert!(attr.borrow().secret_bytes().is_err());
+        let kd = mk.key_data_view().unwrap();
+        assert!(kd.borrow().key_bytes().is_ok());
+        assert!(kd.borrow().secret_bytes().is_err()); // public key
     }
 
     #[test]
@@ -553,29 +647,31 @@ mod tests {
             .try_build()
             .unwrap();
 
-        let attr = attributes_view(&mk).unwrap();
+        let attr = mk.attr_view().unwrap();
         assert_eq!(mk.codec(), Codec::Ed25519Priv);
         assert_eq!(mk.comment, "test key".to_string());
         assert_eq!(false, attr.borrow().is_encrypted());
         assert_eq!(false, attr.borrow().is_public_key());
         assert_eq!(true, attr.borrow().is_secret_key());
-        assert!(attr.borrow().key_bytes().is_ok());
-        assert!(attr.borrow().secret_bytes().is_ok());
+        let kd = mk.key_data_view().unwrap();
+        assert!(kd.borrow().key_bytes().is_ok());
+        assert!(kd.borrow().secret_bytes().is_ok());
     }
 
     #[test]
     fn test_pub_from_string() {
         let s = "zVQSE6EFkZ7inH63w9bBj9jtkj1wL8LHrQ3mW1P9db6JBLnf3aEaesMak9p8Jinmb".to_string();
         let mk = EncodedMultikey::try_from(s.as_str()).unwrap();
-        let attr = attributes_view(&mk).unwrap();
+        let attr = mk.attr_view().unwrap();
         assert_eq!(mk.codec(), Codec::Ed25519Pub);
         assert_eq!(mk.encoding(), Base::Base58Btc);
         assert_eq!(mk.comment, "test key".to_string());
         assert_eq!(false, attr.borrow().is_encrypted());
         assert_eq!(true, attr.borrow().is_public_key());
         assert_eq!(false, attr.borrow().is_secret_key());
-        assert!(attr.borrow().key_bytes().is_ok());
-        assert!(attr.borrow().secret_bytes().is_err());
+        let kd = mk.key_data_view().unwrap();
+        assert!(kd.borrow().key_bytes().is_ok());
+        assert!(kd.borrow().secret_bytes().is_err()); // public key
     }
 
     #[test]
@@ -583,42 +679,45 @@ mod tests {
         let s = "bhkacmcdumvzxiidlmv4qcaja5nk775jrjosqisq42b45vfsxzkah2753vhkjzzg3jdteo2zqrp2a"
             .to_string();
         let mk = EncodedMultikey::try_from(s.as_str()).unwrap();
-        let attr = attributes_view(&mk).unwrap();
+        let attr = mk.attr_view().unwrap();
         assert_eq!(mk.codec(), Codec::Ed25519Priv);
         assert_eq!(mk.encoding(), Base::Base32Lower);
         assert_eq!(mk.comment, "test key".to_string());
         assert_eq!(false, attr.borrow().is_encrypted());
         assert_eq!(false, attr.borrow().is_public_key());
         assert_eq!(true, attr.borrow().is_secret_key());
-        assert!(attr.borrow().key_bytes().is_ok());
-        assert!(attr.borrow().secret_bytes().is_ok());
+        let kd = mk.key_data_view().unwrap();
+        assert!(kd.borrow().key_bytes().is_ok());
+        assert!(kd.borrow().secret_bytes().is_ok());
     }
 
     #[test]
     fn test_pub_from_vec() {
         let b = hex::decode("3aed010874657374206b6579010120552da9e68c94a11c75da53e66d269a992647ca6cfabca4283e1fd322cceb75d4").unwrap();
         let mk = Multikey::try_from(b.as_slice()).unwrap();
-        let attr = attributes_view(&mk).unwrap();
+        let attr = mk.attr_view().unwrap();
         assert_eq!(mk.codec(), Codec::Ed25519Pub);
         assert_eq!(mk.comment, "test key".to_string());
         assert_eq!(false, attr.borrow().is_encrypted());
         assert_eq!(true, attr.borrow().is_public_key());
         assert_eq!(false, attr.borrow().is_secret_key());
-        assert!(attr.borrow().key_bytes().is_ok());
-        assert!(attr.borrow().secret_bytes().is_err());
+        let kd = mk.key_data_view().unwrap();
+        assert!(kd.borrow().key_bytes().is_ok());
+        assert!(kd.borrow().secret_bytes().is_err()); // public key
     }
 
     #[test]
     fn test_priv_from_vec() {
         let b = hex::decode("3a80260874657374206b65790101201e0d7193b676e03b2ba4f329c3817d569de404eef2809b7f401111435dcf3f6b").unwrap();
         let mk = Multikey::try_from(b.as_slice()).unwrap();
-        let attr = attributes_view(&mk).unwrap();
+        let attr = mk.attr_view().unwrap();
         assert_eq!(mk.codec(), Codec::Ed25519Priv);
         assert_eq!(mk.comment, "test key".to_string());
         assert_eq!(false, attr.borrow().is_encrypted());
         assert_eq!(false, attr.borrow().is_public_key());
         assert_eq!(true, attr.borrow().is_secret_key());
-        assert!(attr.borrow().key_bytes().is_ok());
-        assert!(attr.borrow().secret_bytes().is_ok());
+        let kd = mk.key_data_view().unwrap();
+        assert!(kd.borrow().key_bytes().is_ok());
+        assert!(kd.borrow().secret_bytes().is_ok());
     }
 }

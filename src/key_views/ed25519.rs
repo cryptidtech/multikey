@@ -1,8 +1,7 @@
 use crate::{
-    attributes_view, conversions_view,
     error::{AttributesError, CipherError, ConversionsError, KdfError},
-    AttrId, AttributesView, Builder, CipherAttributesView, ConversionsView, Error,
-    KdfAttributesView, Multikey,
+    AttrId, AttrView, Builder, CipherAttrView, Error, FingerprintView, KdfAttrView, KeyConvView,
+    KeyDataView, KeyViews, Multikey,
 };
 use ed25519_dalek::{SigningKey, SECRET_KEY_LENGTH};
 use multicodec::Codec;
@@ -23,7 +22,7 @@ impl<'a> TryFrom<&'a Multikey> for View<'a> {
     }
 }
 
-impl<'a> AttributesView for View<'a> {
+impl<'a> AttrView for View<'a> {
     fn is_encrypted(&self) -> bool {
         if let Some(v) = self.mk.attributes.get(&AttrId::KeyIsEncrypted) {
             if let Ok((b, _)) = Varuint::<bool>::try_decode_from(v.as_slice()) {
@@ -40,7 +39,9 @@ impl<'a> AttributesView for View<'a> {
     fn is_public_key(&self) -> bool {
         self.mk.codec == Codec::Ed25519Pub
     }
+}
 
+impl<'a> KeyDataView for View<'a> {
     /// For Ed25519Pub and Ed25519Priv Multikey values, the key data is stored
     /// using the AttrId::Data attribute id.
     fn key_bytes(&self) -> Result<Zeroizing<Vec<u8>>, Error> {
@@ -64,14 +65,14 @@ impl<'a> AttributesView for View<'a> {
     }
 }
 
-impl<'a> CipherAttributesView for View<'a> {
+impl<'a> CipherAttrView for View<'a> {
     fn cipher_codec(&self) -> Result<Codec, Error> {
         // try to look up the cipher codec in the multikey attributes
         let codec = self
             .mk
             .attributes
             .get(&AttrId::CipherCodec)
-            .ok_or(KdfError::MissingCodec)?;
+            .ok_or(CipherError::MissingCodec)?;
         Ok(Codec::try_from(codec.as_slice())?)
     }
 
@@ -105,7 +106,7 @@ impl<'a> CipherAttributesView for View<'a> {
     }
 }
 
-impl<'a> KdfAttributesView for View<'a> {
+impl<'a> KdfAttrView for View<'a> {
     fn kdf_codec(&self) -> Result<Codec, Error> {
         // try to look up the kdf codec in the multikey attributes
         let codec = self
@@ -146,31 +147,41 @@ impl<'a> KdfAttributesView for View<'a> {
     }
 }
 
-impl<'a> ConversionsView for View<'a> {
+impl<'a> FingerprintView for View<'a> {
     fn fingerprint(&self, codec: Codec) -> Result<Multihash, Error> {
-        let attr = attributes_view(&self.mk)?;
+        let attr = self.mk.attr_view()?;
         if attr.borrow().is_secret_key() {
             // convert to a public key Multikey
             let pk = self.to_public_key()?;
             // get a conversions view on the public key
-            let conv = conversions_view(&pk)?;
+            let fp = pk.fingerprint_view()?;
             // get the fingerprint
-            let f = conv.borrow().fingerprint(codec)?;
+            let f = fp.borrow().fingerprint(codec)?;
             Ok(f)
         } else {
             // get the key bytes
-            let bytes = attr.borrow().key_bytes()?;
+            let bytes = {
+                let kd = self.mk.key_data_view()?;
+                let bytes = kd.borrow().key_bytes()?;
+                bytes
+            };
             // hash the key bytes using the given codec
             Ok(mh::Builder::new_from_bytes(codec, bytes)?.try_build()?)
         }
     }
+}
 
+impl<'a> KeyConvView for View<'a> {
     fn to_public_key(&self) -> Result<Multikey, Error> {
-        let attr = attributes_view(&self.mk)?;
         // get the secret key bytes
-        let key = attr.borrow().secret_bytes()?;
+        let secret_bytes = {
+            let kd = self.mk.key_data_view()?;
+            let secret_bytes = kd.borrow().secret_bytes()?;
+            secret_bytes
+        };
+
         // build an Ed25519 signing key so that we can derive the verifying key
-        let bytes: [u8; SECRET_KEY_LENGTH] = key.as_slice()[..SECRET_KEY_LENGTH]
+        let bytes: [u8; SECRET_KEY_LENGTH] = secret_bytes.as_slice()[..SECRET_KEY_LENGTH]
             .try_into()
             .map_err(|_| {
                 ConversionsError::SecretKeyFailure("failed to get secret key bytes".to_string())
@@ -181,19 +192,6 @@ impl<'a> ConversionsView for View<'a> {
         Builder::new(Codec::Ed25519Pub)
             .with_comment(&self.mk.comment)
             .with_key_bytes(public_key.as_bytes())
-            .try_build()
-    }
-
-    // for Ed25519 key pairs, this only succeeds if the Multikey is a secret
-    // key and the key is not encrypted
-    fn to_secret_key(&self) -> Result<Multikey, Error> {
-        let attr = attributes_view(&self.mk)?;
-        // get the secret key bytes
-        let key = attr.borrow().secret_bytes()?;
-        // build a new secret key Multikey from it
-        Builder::new(Codec::Ed25519Priv)
-            .with_comment(&self.mk.comment)
-            .with_key_bytes(&key)
             .try_build()
     }
 }

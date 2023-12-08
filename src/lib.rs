@@ -11,6 +11,10 @@
 pub mod error;
 pub use error::Error;
 
+/// Multikey attribute IDs
+pub mod attrid;
+pub use attrid::AttrId;
+
 /// Cipher function builder
 pub mod cipher;
 
@@ -20,9 +24,8 @@ pub mod kdf;
 /// Key views
 pub mod key_views;
 pub use key_views::{
-    attributes_view, cipher_attributes_view, cipher_view, conversions_view, kdf_attributes_view,
-    kdf_view, AttrId, AttributesView, CipherAttributesView, CipherView, ConversionsView,
-    KdfAttributesView, KdfView,
+    AttrView, CipherAttrView, CipherView, FingerprintView, KdfAttrView, KdfView, KeyConvView,
+    KeyDataView, KeyViews,
 };
 
 /// Multikey type and functions

@@ -93,10 +93,7 @@ impl Builder {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{
-        attributes_view, cipher_attributes_view, cipher_view, kdf, kdf_attributes_view, kdf_view,
-        mk,
-    };
+    use crate::{kdf, mk, KeyViews};
 
     #[test]
     fn test_chacha20() {
@@ -117,16 +114,13 @@ mod tests {
             .unwrap();
 
         // get the kdf view on the kdf multikey
-        let kdf = kdf_view(&kdfmk).unwrap();
+        let kdf = ciphermk.kdf_view(&kdfmk).unwrap();
 
         // derive a key for the cipher multikey to use
         let ciphermk = kdf
             .borrow()
-            .derive_key(&ciphermk, b"for great justice, move every zig!")
+            .derive_key(b"for great justice, move every zig!")
             .unwrap();
-
-        // get the cipher view on the cipher multikey
-        let cipher = cipher_view(&ciphermk).unwrap();
 
         // generate a random secret key
         let mut rng = rand::rngs::OsRng::default();
@@ -136,17 +130,21 @@ mod tests {
             .try_build()
             .unwrap();
 
+        // get the cipher view on the multikey
+        let cipher = mk.cipher_view(&ciphermk).unwrap();
+
         // encrypt the secret key
-        let mk = cipher.borrow().encrypt(&mk).unwrap();
+        let mk = cipher.borrow().encrypt().unwrap();
 
         // make sure all of the attributes are right
-        let attr = attributes_view(&mk).unwrap();
+        let attr = mk.attr_view().unwrap();
         assert!(attr.borrow().is_encrypted());
         assert!(!attr.borrow().is_public_key());
         assert!(attr.borrow().is_secret_key());
-        assert!(attr.borrow().key_bytes().is_ok());
-        assert!(attr.borrow().secret_bytes().is_err());
-        let cattr = cipher_attributes_view(&mk).unwrap();
+        let kd = mk.key_data_view().unwrap();
+        assert!(kd.borrow().key_bytes().is_ok());
+        assert!(kd.borrow().secret_bytes().is_err());
+        let cattr = mk.cipher_attr_view().unwrap();
         assert_eq!(
             Codec::Chacha20Poly1305,
             cattr.borrow().cipher_codec().unwrap()
@@ -154,7 +152,7 @@ mod tests {
         assert!(cattr.borrow().nonce_bytes().is_ok());
         assert_eq!(8, cattr.borrow().nonce_length().unwrap());
         assert_eq!(32, cattr.borrow().key_length().unwrap());
-        let kattr = kdf_attributes_view(&mk).unwrap();
+        let kattr = mk.kdf_attr_view().unwrap();
         assert_eq!(Codec::BcryptPbkdf, kattr.borrow().kdf_codec().unwrap());
     }
 }

@@ -1,8 +1,7 @@
 use crate::{
-    attributes_view, cipher_attributes_view, conversions_view,
-    error::{AttributesError, CipherError, ConversionsError, KdfError},
-    kdf_attributes_view, AttrId, AttributesView, Builder, CipherAttributesView, CipherView,
-    ConversionsView, Error, KdfAttributesView, Multikey,
+    error::{AttributesError, CipherError, KdfError},
+    AttrId, AttrView, CipherAttrView, CipherView, Error, FingerprintView, KdfAttrView, KeyDataView,
+    KeyViews, Multikey,
 };
 use multicodec::Codec;
 use multihash::{mh, Multihash};
@@ -17,127 +16,27 @@ pub const NONCE_LENGTH: usize = chacha20poly1305::NONCEBYTES;
 
 pub(crate) struct View<'a> {
     mk: &'a Multikey,
+    cipher: Option<&'a Multikey>,
+}
+
+impl<'a> View<'a> {
+    pub fn new(mk: &'a Multikey, cipher: &'a Multikey) -> Self {
+        Self {
+            mk,
+            cipher: Some(cipher),
+        }
+    }
 }
 
 impl<'a> TryFrom<&'a Multikey> for View<'a> {
     type Error = Error;
 
     fn try_from(mk: &'a Multikey) -> Result<Self, Self::Error> {
-        Ok(Self { mk })
+        Ok(Self { mk, cipher: None })
     }
 }
 
-impl<'a> CipherView for View<'a> {
-    fn decrypt(&self, mk: &Multikey) -> Result<Multikey, Error> {
-        // get a view on the cipher attributes
-        let cattr = cipher_attributes_view(&self.mk)?;
-
-        // get the nonce
-        let nonce = cattr.borrow().nonce_bytes()?;
-        if nonce.len() != self.nonce_length()? {
-            return Err(CipherError::InvalidNonce.into());
-        }
-        let n = chacha20poly1305::Nonce::from_slice(nonce.as_slice())
-            .ok_or(CipherError::InvalidNonce)?;
-
-        let attr = attributes_view(self.mk)?;
-        let key = attr.borrow().secret_bytes()?;
-        if key.len() != self.key_length()? {
-            return Err(CipherError::InvalidKey.into());
-        }
-        let k = chacha20poly1305::Key::from_slice(key.as_slice()).ok_or(CipherError::InvalidKey)?;
-
-        // get the encrypted key bytes from the passed-in Multikey
-        let msg = {
-            let attr = attributes_view(mk)?;
-            let msg = attr.borrow().key_bytes()?;
-            msg
-        };
-
-        let dec = chacha20poly1305::open(msg.as_slice(), None, &n, &k)
-            .map_err(|_| CipherError::DecryptionFailed)?;
-
-        // create a new multikey from the passed-in multikey with the decrypted
-        // key and clear out all of the cipher and kdf attributes
-        let mut res = mk.clone();
-        let _ = res.attributes.remove(&AttrId::KeyIsEncrypted);
-        res.attributes.insert(AttrId::KeyData, dec.into());
-        let _ = res.attributes.remove(&AttrId::CipherCodec);
-        let _ = res.attributes.remove(&AttrId::CipherKeyLen);
-        let _ = res.attributes.remove(&AttrId::CipherNonce);
-        let _ = res.attributes.remove(&AttrId::CipherNonceLen);
-        let _ = res.attributes.remove(&AttrId::KdfCodec);
-        let _ = res.attributes.remove(&AttrId::KdfSalt);
-        let _ = res.attributes.remove(&AttrId::KdfSaltLen);
-        let _ = res.attributes.remove(&AttrId::KdfRounds);
-        Ok(res)
-    }
-
-    fn encrypt(&self, mk: &Multikey) -> Result<Multikey, Error> {
-        // get a view on the cipher attributes
-        let cattr = cipher_attributes_view(&self.mk)?;
-
-        // get the nonce
-        let nonce = cattr.borrow().nonce_bytes()?;
-        if nonce.len() != self.nonce_length()? {
-            return Err(CipherError::InvalidNonce.into());
-        }
-        let n = chacha20poly1305::Nonce::from_slice(nonce.as_slice())
-            .ok_or(CipherError::InvalidNonce)?;
-
-        let attr = attributes_view(self.mk)?;
-        let key = attr.borrow().secret_bytes()?;
-        if key.len() != self.key_length()? {
-            return Err(CipherError::InvalidKey.into());
-        }
-        let k = chacha20poly1305::Key::from_slice(key.as_slice()).ok_or(CipherError::InvalidKey)?;
-
-        // get the secret bytes from the passed-in Multikey
-        let msg = {
-            let attr = attributes_view(mk)?;
-            let msg = attr.borrow().secret_bytes()?;
-            msg
-        };
-
-        // encrypt the secret bytes from the passed-in Multikey
-        let enc = chacha20poly1305::seal(msg.as_slice(), None, &n, &k);
-
-        // prepare the attributes
-        let codec: Vec<u8> = self.mk.codec.into();
-        let key_length: Vec<u8> = Varuint(self.key_length()?).into();
-        let nonce_length: Vec<u8> = Varuint(self.nonce_length()?).into();
-        let is_encrypted: Vec<u8> = Varuint(true).into();
-
-        // get a view on the kdf attributes
-        let kattr = kdf_attributes_view(&self.mk)?;
-
-        let kdf_codec: Vec<u8> = kattr.borrow().kdf_codec()?.into();
-        let salt = kattr.borrow().salt_bytes()?;
-        let salt_length: Vec<u8> = Varuint(kattr.borrow().salt_length()?).into();
-        let rounds: Vec<u8> = Varuint(kattr.borrow().rounds()?).into();
-
-        // create a new multikey from the passed-in multikey with the cipher
-        // and kdf parameters added along with the encrypted key
-        let mut res = mk.clone();
-        res.attributes
-            .insert(AttrId::KeyIsEncrypted, is_encrypted.into());
-        res.attributes.insert(AttrId::KeyData, enc.into());
-        res.attributes.insert(AttrId::CipherCodec, codec.into());
-        res.attributes
-            .insert(AttrId::CipherKeyLen, key_length.into());
-        res.attributes.insert(AttrId::CipherNonce, nonce.clone());
-        res.attributes
-            .insert(AttrId::CipherNonceLen, nonce_length.into());
-        res.attributes.insert(AttrId::KdfCodec, kdf_codec.into());
-        res.attributes.insert(AttrId::KdfSalt, salt.clone());
-        res.attributes
-            .insert(AttrId::KdfSaltLen, salt_length.into());
-        res.attributes.insert(AttrId::KdfRounds, rounds.into());
-        Ok(res)
-    }
-}
-
-impl<'a> AttributesView for View<'a> {
+impl<'a> AttrView for View<'a> {
     fn is_encrypted(&self) -> bool {
         if let Some(v) = self.mk.attributes.get(&AttrId::KeyIsEncrypted) {
             if let Ok((b, _)) = Varuint::<bool>::try_decode_from(v.as_slice()) {
@@ -154,14 +53,16 @@ impl<'a> AttributesView for View<'a> {
     fn is_public_key(&self) -> bool {
         false
     }
+}
 
+impl<'a> KeyDataView for View<'a> {
     /// return the ChaCha20 key bytes
     fn key_bytes(&self) -> Result<Zeroizing<Vec<u8>>, Error> {
         let key = self
             .mk
             .attributes
             .get(&AttrId::KeyData)
-            .ok_or(AttributesError::MissingKey)?;
+            .ok_or_else(|| AttributesError::MissingKey)?;
         Ok(key.clone())
     }
 
@@ -174,9 +75,9 @@ impl<'a> AttributesView for View<'a> {
     }
 }
 
-impl<'a> CipherAttributesView for View<'a> {
+impl<'a> CipherAttrView for View<'a> {
     fn cipher_codec(&self) -> Result<Codec, Error> {
-        Ok(self.mk.codec)
+        Ok(Codec::Chacha20Poly1305)
     }
 
     fn nonce_bytes(&self) -> Result<Zeroizing<Vec<u8>>, Error> {
@@ -184,7 +85,7 @@ impl<'a> CipherAttributesView for View<'a> {
         self.mk
             .attributes
             .get(&AttrId::CipherNonce)
-            .ok_or(CipherError::MissingNonce.into())
+            .ok_or_else(|| CipherError::MissingNonce.into())
             .cloned()
     }
 
@@ -197,14 +98,14 @@ impl<'a> CipherAttributesView for View<'a> {
     }
 }
 
-impl<'a> KdfAttributesView for View<'a> {
+impl<'a> KdfAttrView for View<'a> {
     fn kdf_codec(&self) -> Result<Codec, Error> {
         // try to look up the kdf codec in the multikey attributes
         let codec = self
             .mk
             .attributes
             .get(&AttrId::KdfCodec)
-            .ok_or(KdfError::MissingCodec)?;
+            .ok_or_else(|| KdfError::MissingCodec)?;
         Ok(Codec::try_from(codec.as_slice())?)
     }
 
@@ -213,7 +114,7 @@ impl<'a> KdfAttributesView for View<'a> {
         self.mk
             .attributes
             .get(&AttrId::KdfSalt)
-            .ok_or(KdfError::MissingSalt.into())
+            .ok_or_else(|| KdfError::MissingSalt.into())
             .cloned()
     }
 
@@ -223,7 +124,7 @@ impl<'a> KdfAttributesView for View<'a> {
             .mk
             .attributes
             .get(&AttrId::KdfSaltLen)
-            .ok_or(KdfError::MissingSaltLen)?;
+            .ok_or_else(|| KdfError::MissingSaltLen)?;
         Ok(Varuint::<usize>::try_from(salt_length.as_slice())?.to_inner())
     }
 
@@ -233,42 +134,167 @@ impl<'a> KdfAttributesView for View<'a> {
             .mk
             .attributes
             .get(&AttrId::KdfRounds)
-            .ok_or(KdfError::MissingRounds)?;
+            .ok_or_else(|| KdfError::MissingRounds)?;
         Ok(Varuint::<usize>::try_from(rounds.as_slice())?.to_inner())
     }
 }
 
-impl<'a> ConversionsView for View<'a> {
-    fn fingerprint(&self, codec: Codec) -> Result<Multihash, Error> {
-        let attr = attributes_view(&self.mk)?;
-        if attr.borrow().is_secret_key() {
-            // convert to a public key Multikey
-            let pk = self.to_public_key()?;
-            // get a conversions view on the public key
-            let conv = conversions_view(&pk)?;
-            // get the fingerprint
-            let f = conv.borrow().fingerprint(codec)?;
-            Ok(f)
-        } else {
-            // get the key bytes
-            let bytes = attr.borrow().key_bytes()?;
-            // hash the key bytes using the given codec
-            Ok(mh::Builder::new_from_bytes(codec, bytes)?.try_build()?)
+impl<'a> CipherView for View<'a> {
+    fn decrypt(&self) -> Result<Multikey, Error> {
+        let cipher = self.cipher.ok_or_else(|| CipherError::MissingCodec)?;
+        // make sure the viewed key is an encrypted secret key
+        let attr = self.mk.attr_view()?;
+        if !attr.borrow().is_encrypted() || !attr.borrow().is_secret_key() {
+            return Err(CipherError::DecryptionFailed.into());
         }
+
+        // get the nonce data from the passed-in Multikey
+        let nonce = {
+            let cattr = cipher.cipher_attr_view()?;
+            let nonce = cattr.borrow().nonce_bytes()?;
+            if nonce.len() != self.nonce_length()? {
+                return Err(CipherError::InvalidNonce.into());
+            }
+            nonce
+        };
+
+        // create the chacha nonce from the data
+        let n = chacha20poly1305::Nonce::from_slice(nonce.as_slice())
+            .ok_or_else(|| CipherError::InvalidNonce)?;
+
+        // get the key data from the passed-in Multikey
+        let key = {
+            let kd = cipher.key_data_view()?;
+            let key = kd.borrow().secret_bytes()?;
+            if key.len() != self.key_length()? {
+                return Err(CipherError::InvalidKey.into());
+            }
+            key
+        };
+
+        // create the chacha key from the data
+        let k = chacha20poly1305::Key::from_slice(key.as_slice())
+            .ok_or_else(|| CipherError::InvalidKey)?;
+
+        // get the encrypted key bytes from the viewed Multikey (self)
+        let msg = {
+            let attr = self.mk.key_data_view()?;
+            let msg = attr.borrow().key_bytes()?;
+            msg
+        };
+
+        // decrypt the key bytes
+        let dec = chacha20poly1305::open(msg.as_slice(), None, &n, &k)
+            .map_err(|_| CipherError::DecryptionFailed)?;
+
+        // create a new Multikey from the viewed Multikey (self) with the
+        // decrypted key and none of the kdf or cipher attributes
+        let mut res = self.mk.clone();
+        let _ = res.attributes.remove(&AttrId::KeyIsEncrypted);
+        res.attributes.insert(AttrId::KeyData, dec.into());
+        let _ = res.attributes.remove(&AttrId::CipherCodec);
+        let _ = res.attributes.remove(&AttrId::CipherKeyLen);
+        let _ = res.attributes.remove(&AttrId::CipherNonce);
+        let _ = res.attributes.remove(&AttrId::CipherNonceLen);
+        let _ = res.attributes.remove(&AttrId::KdfCodec);
+        let _ = res.attributes.remove(&AttrId::KdfSalt);
+        let _ = res.attributes.remove(&AttrId::KdfSaltLen);
+        let _ = res.attributes.remove(&AttrId::KdfRounds);
+        Ok(res)
     }
 
-    fn to_public_key(&self) -> Result<Multikey, Error> {
-        Err(ConversionsError::UnsupportedCodec(self.mk.codec).into())
-    }
+    fn encrypt(&self) -> Result<Multikey, Error> {
+        let cipher = self.cipher.ok_or_else(|| CipherError::MissingCodec)?;
+        // make sure the viewed key is not encrypted
+        let attr = self.mk.attr_view()?;
+        if attr.borrow().is_encrypted() {
+            return Err(
+                CipherError::EncryptionFailed("key is encrypted already".to_string()).into(),
+            );
+        }
 
-    fn to_secret_key(&self) -> Result<Multikey, Error> {
-        let attr = attributes_view(&self.mk)?;
-        // get the secret key bytes
-        let key = attr.borrow().secret_bytes()?;
-        // build a new secret key Multikey from it
-        Builder::new(self.mk.codec)
-            .with_comment(&self.mk.comment)
-            .with_key_bytes(&key)
-            .try_build()
+        // get the nonce data from the passed-in Multikey
+        let nonce = {
+            let cattr = cipher.cipher_attr_view()?;
+            let nonce = cattr.borrow().nonce_bytes()?;
+            if nonce.len() != self.nonce_length()? {
+                return Err(CipherError::InvalidNonce.into());
+            }
+            nonce
+        };
+
+        let n = chacha20poly1305::Nonce::from_slice(nonce.as_slice())
+            .ok_or_else(|| CipherError::InvalidNonce)?;
+
+        // get the key data from the passed-in Multikey
+        let key = {
+            let kd = cipher.key_data_view()?;
+            let key = kd.borrow().secret_bytes()?;
+            if key.len() != self.key_length()? {
+                return Err(CipherError::InvalidKey.into());
+            }
+            key
+        };
+
+        let k = chacha20poly1305::Key::from_slice(key.as_slice())
+            .ok_or_else(|| CipherError::InvalidKey)?;
+
+        // get the secret bytes from the viewed Multikey
+        let msg = {
+            let kd = self.mk.key_data_view()?;
+            let msg = kd.borrow().secret_bytes()?;
+            msg
+        };
+
+        // encrypt the secret bytes from the viewed Multikey
+        let enc = chacha20poly1305::seal(msg.as_slice(), None, &n, &k);
+
+        // prepare the cipher attributes
+        let cattr = cipher.cipher_attr_view()?;
+        let cipher_codec: Vec<u8> = cipher.codec.into();
+        let key_length: Vec<u8> = Varuint(cattr.borrow().key_length()?).into();
+        let nonce_length: Vec<u8> = Varuint(cattr.borrow().nonce_length()?).into();
+        let is_encrypted: Vec<u8> = Varuint(true).into();
+
+        // get a view on the kdf attributes
+        let kattr = cipher.kdf_attr_view()?;
+        let kdf_codec: Vec<u8> = kattr.borrow().kdf_codec()?.into();
+        let salt = kattr.borrow().salt_bytes()?;
+        let salt_length: Vec<u8> = Varuint(kattr.borrow().salt_length()?).into();
+        let rounds: Vec<u8> = Varuint(kattr.borrow().rounds()?).into();
+
+        // create a copy of the viewed Multikey (self) and add in the encrypted
+        // key data as awell as the kdf and cipher attributes and data so that
+        // the encrypted Multikey is self-describing about how it was encrypted
+        let mut res = self.mk.clone();
+        res.attributes
+            .insert(AttrId::KeyIsEncrypted, is_encrypted.into());
+        res.attributes.insert(AttrId::KeyData, enc.into());
+        res.attributes
+            .insert(AttrId::CipherCodec, cipher_codec.into());
+        res.attributes
+            .insert(AttrId::CipherKeyLen, key_length.into());
+        res.attributes.insert(AttrId::CipherNonce, nonce.clone());
+        res.attributes
+            .insert(AttrId::CipherNonceLen, nonce_length.into());
+        res.attributes.insert(AttrId::KdfCodec, kdf_codec.into());
+        res.attributes.insert(AttrId::KdfSalt, salt.clone());
+        res.attributes
+            .insert(AttrId::KdfSaltLen, salt_length.into());
+        res.attributes.insert(AttrId::KdfRounds, rounds.into());
+        Ok(res)
+    }
+}
+
+impl<'a> FingerprintView for View<'a> {
+    fn fingerprint(&self, codec: Codec) -> Result<Multihash, Error> {
+        // get the key bytes
+        let bytes = {
+            let kd = self.mk.key_data_view()?;
+            let bytes = kd.borrow().key_bytes()?;
+            bytes
+        };
+        // hash the key bytes using the given codec
+        Ok(mh::Builder::new_from_bytes(codec, bytes)?.try_build()?)
     }
 }

@@ -1,5 +1,5 @@
 use crate::{mk, nonce, AttrId, Multikey, Nonce};
-use multiutil::{BaseEncoded, EncodedVarbytes, EncodingInfo, Varbytes};
+use multiutil::{EncodedVarbytes, EncodingInfo, Varbytes};
 use serde::ser::{self, SerializeStruct};
 
 /// Serialize instance of [`crate::Nonce`]
@@ -48,7 +48,7 @@ impl ser::Serialize for Multikey {
                 .map(|(id, attr)| {
                     (
                         id.to_string(),
-                        BaseEncoded::new(self.encoding(), Varbytes(attr.to_vec())),
+                        Varbytes::encoded_new(self.encoding(), attr.to_vec()),
                     )
                 })
                 .collect();
