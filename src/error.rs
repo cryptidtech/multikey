@@ -1,7 +1,5 @@
-use thiserror::Error;
-
 /// Errors created by this library
-#[derive(Clone, Debug, Eq, Error, PartialEq)]
+#[derive(Clone, Debug, thiserror::Error)]
 #[non_exhaustive]
 pub enum Error {
     /// Attributes error
@@ -57,7 +55,7 @@ pub enum Error {
 }
 
 /// Attributes errors created by this library
-#[derive(Clone, Debug, Eq, Error, PartialEq)]
+#[derive(Clone, Debug, thiserror::Error)]
 #[non_exhaustive]
 pub enum AttributesError {
     /// Error with the key codec
@@ -81,7 +79,7 @@ pub enum AttributesError {
 }
 
 /// Conversions errors created by this library
-#[derive(Clone, Debug, Eq, Error, PartialEq)]
+#[derive(Clone, Debug, thiserror::Error)]
 #[non_exhaustive]
 pub enum ConversionsError {
     /// Ssh key error
@@ -102,7 +100,7 @@ pub enum ConversionsError {
 }
 
 /// Cipher errors created by this library
-#[derive(Clone, Debug, Eq, Error, PartialEq)]
+#[derive(Clone, Debug, thiserror::Error)]
 #[non_exhaustive]
 pub enum CipherError {
     /// Error with the cipher codec
@@ -138,7 +136,7 @@ pub enum CipherError {
 }
 
 /// Kdf errors created by this library
-#[derive(Clone, Debug, Eq, Error, PartialEq)]
+#[derive(Clone, Debug, thiserror::Error)]
 #[non_exhaustive]
 pub enum KdfError {
     /// Bcrypt PBKDF error
@@ -162,7 +160,7 @@ pub enum KdfError {
 }
 
 /// Nonce errors created by this library
-#[derive(Clone, Debug, Eq, Error, PartialEq)]
+#[derive(Clone, Debug, thiserror::Error)]
 #[non_exhaustive]
 pub enum NonceError {
     /// Missing sigil
@@ -174,7 +172,7 @@ pub enum NonceError {
 }
 
 /// Sign errors created by this library
-#[derive(Clone, Debug, Eq, Error, PartialEq)]
+#[derive(Clone, Debug, thiserror::Error)]
 #[non_exhaustive]
 pub enum SignError {
     /// Not a signing key
@@ -186,7 +184,7 @@ pub enum SignError {
 }
 
 /// Verify errors created by this library
-#[derive(Clone, Debug, Eq, Error, PartialEq)]
+#[derive(Clone, Debug, thiserror::Error)]
 #[non_exhaustive]
 pub enum VerifyError {
     /// Missing signature
