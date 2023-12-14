@@ -3,8 +3,10 @@ use crate::{
     AttrId, AttrView, Builder, CipherAttrView, Error, FingerprintView, KdfAttrView, KeyConvView,
     KeyDataView, KeyViews, Multikey, SignView, VerifyView,
 };
-use ed25519_dalek::{
-    Signature, Signer, SigningKey, VerifyingKey, PUBLIC_KEY_LENGTH, SECRET_KEY_LENGTH,
+
+use k256::ecdsa::{
+    signature::{Signer, Verifier},
+    Signature, SigningKey, VerifyingKey,
 };
 use multicodec::Codec;
 use multihash::{mh, Multihash};
@@ -12,6 +14,9 @@ use multisig::{ms, Multisig, SigViews};
 use multitrait::TryDecodeFrom;
 use multiutil::Varuint;
 use zeroize::Zeroizing;
+
+const SECRET_KEY_LENGTH: usize = 32;
+const PUBLIC_KEY_LENGTH: usize = 33;
 
 pub(crate) struct View<'a> {
     mk: &'a Multikey,
@@ -36,16 +41,16 @@ impl<'a> AttrView for View<'a> {
     }
 
     fn is_secret_key(&self) -> bool {
-        self.mk.codec == Codec::Ed25519Priv
+        self.mk.codec == Codec::Secp256K1Priv
     }
 
     fn is_public_key(&self) -> bool {
-        self.mk.codec == Codec::Ed25519Pub
+        self.mk.codec == Codec::Secp256K1Pub
     }
 }
 
 impl<'a> KeyDataView for View<'a> {
-    /// For Ed25519Pub and Ed25519Priv Multikey values, the key data is stored
+    /// For Secp256K1Pub and Secp256K1Priv Multikey values, the key data is stored
     /// using the AttrId::Data attribute id.
     fn key_bytes(&self) -> Result<Zeroizing<Vec<u8>>, Error> {
         let key = self
@@ -189,12 +194,13 @@ impl<'a> KeyConvView for View<'a> {
             .map_err(|_| {
                 ConversionsError::SecretKeyFailure("failed to get secret key bytes".to_string())
             })?;
-        let secret_key = SigningKey::from_bytes(&bytes);
+        let secret_key = SigningKey::from_bytes(&bytes.into())
+            .map_err(|e| ConversionsError::SecretKeyFailure(e.to_string()))?;
         // get the public key and build a Multikey out of it
         let public_key = secret_key.verifying_key();
-        Builder::new(Codec::Ed25519Pub)
+        Builder::new(Codec::Secp256K1Pub)
             .with_comment(&self.mk.comment)
-            .with_key_bytes(public_key.as_bytes())
+            .with_key_bytes(&public_key.to_sec1_bytes())
             .try_build()
     }
 }
@@ -221,16 +227,18 @@ impl<'a> SignView for View<'a> {
                 .map_err(|_| {
                     ConversionsError::SecretKeyFailure("failed to get secret key bytes".to_string())
                 })?;
-            let secret_key = SigningKey::from_bytes(&bytes);
+            let secret_key = SigningKey::from_bytes(&bytes.into())
+                .map_err(|e| ConversionsError::SecretKeyFailure(e.to_string()))?;
             secret_key
         };
 
         // sign the data
-        let signature = secret_key
+        let signature: Signature = secret_key
             .try_sign(msg)
             .map_err(|e| SignError::SigningFailed(e.to_string()))?;
 
-        let mut ms = ms::Builder::new(Codec::Ed25519Pub).with_signature_bytes(signature.to_bytes());
+        let mut ms =
+            ms::Builder::new(Codec::Secp256K1Pub).with_signature_bytes(signature.to_bytes());
         if combined {
             ms = ms.with_message_bytes(&msg);
         }
@@ -265,7 +273,7 @@ impl<'a> VerifyView for View<'a> {
         })?;
 
         // create the verifying key
-        let verifying_key = VerifyingKey::from_bytes(&bytes)
+        let verifying_key = VerifyingKey::from_sec1_bytes(&bytes)
             .map_err(|e| ConversionsError::PublicKeyFailure(e.to_string()))?;
 
         // get the signature data
@@ -288,9 +296,10 @@ impl<'a> VerifyView for View<'a> {
             return Err(VerifyError::MissingMessage.into());
         };
 
-        verifying_key
-            .verify_strict(msg, &sig)
-            .map_err(|e| VerifyError::BadSignature(e.to_string()))?;
+        verifying_key.verify(msg, &sig).map_err(|e| {
+            println!("{}", e.to_string());
+            VerifyError::BadSignature(e.to_string())
+        })?;
 
         Ok(())
     }

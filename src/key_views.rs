@@ -6,9 +6,10 @@ use std::{cell::RefCell, rc::Rc};
 use zeroize::Zeroizing;
 
 // algorithms implement different sets of view
-pub(crate) mod bcrypt; // KdfAttrView, KdfView
-pub(crate) mod chacha20; // AttrView, ConversionsView, CipherView
-pub(crate) mod ed25519; // AttributesView, ConversionsView, CipherView
+pub(crate) mod bcrypt;
+pub(crate) mod chacha20;
+pub(crate) mod ed25519;
+pub(crate) mod secp256k1;
 
 ///
 /// Attributes views let you inquire about the Multikey and retrieve data
