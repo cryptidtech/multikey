@@ -108,6 +108,10 @@ pub trait KeyConvView {
     /// try to create a Multikey from this view that is the public key part of
     /// a key pair. this always fails for symmetric encryption codecs.
     fn to_public_key(&self) -> Result<Multikey, Error>;
+    /// try to convert a Multikey to an ssh_key::PublicKey
+    fn to_ssh_public_key(&self) -> Result<ssh_key::PublicKey, Error>;
+    /// try to convert a Multikey to an ssh_key::PrivateKey
+    fn to_ssh_private_key(&self) -> Result<ssh_key::PrivateKey, Error>;
 }
 
 /// trait for digially signing data using a multikey

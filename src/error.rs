@@ -85,6 +85,12 @@ pub enum ConversionsError {
     /// Ssh key error
     #[error(transparent)]
     SshKey(#[from] ssh_key::Error),
+    /// Ssh key label error
+    #[error(transparent)]
+    SshKeyLabel(#[from] ssh_encoding::LabelError),
+    /// Ssh encoding error
+    #[error(transparent)]
+    SshEncoding(#[from] ssh_encoding::Error),
     /// Public key operation failure
     #[error("Public key error: {0}")]
     PublicKeyFailure(String),

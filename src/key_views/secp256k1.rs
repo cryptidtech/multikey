@@ -13,10 +13,15 @@ use multihash::{mh, Multihash};
 use multisig::{ms, Multisig, SigViews};
 use multitrait::TryDecodeFrom;
 use multiutil::Varuint;
+use ssh_encoding::{Decode, Encode};
 use zeroize::Zeroizing;
 
-const SECRET_KEY_LENGTH: usize = 32;
-const PUBLIC_KEY_LENGTH: usize = 33;
+/// the number of bytes in an secp256k1 secret key
+pub const SECRET_KEY_LENGTH: usize = 32;
+/// the number of bytes in an secp256k1 public key
+pub const PUBLIC_KEY_LENGTH: usize = 33;
+/// the RFC 4251 algorithm name for SSH compatibility
+pub const ALGORITHM_NAME: &'static str = "secp256k1@cryptid.tech";
 
 pub(crate) struct View<'a> {
     mk: &'a Multikey,
@@ -180,6 +185,7 @@ impl<'a> FingerprintView for View<'a> {
 }
 
 impl<'a> KeyConvView for View<'a> {
+    /// try to convert a secret key to a public key
     fn to_public_key(&self) -> Result<Multikey, Error> {
         // get the secret key bytes
         let secret_bytes = {
@@ -202,6 +208,85 @@ impl<'a> KeyConvView for View<'a> {
             .with_comment(&self.mk.comment)
             .with_key_bytes(&public_key.to_sec1_bytes())
             .try_build()
+    }
+
+    /// try to convert a Multikey to an ssh_key::PublicKey
+    fn to_ssh_public_key(&self) -> Result<ssh_key::PublicKey, Error> {
+        let mut pk = self.mk.clone();
+        if self.is_secret_key() {
+            pk = self.to_public_key()?;
+        }
+
+        let key_bytes = {
+            let kd = pk.key_data_view()?;
+            let key_bytes = kd.borrow().key_bytes()?;
+            key_bytes
+        };
+
+        let mut buff: Vec<u8> = Vec::new();
+        key_bytes
+            .encode(&mut buff)
+            .map_err(|e| ConversionsError::SshEncoding(e))?;
+        let opaque_key_bytes = ssh_key::public::OpaquePublicKeyBytes::decode(&mut buff.as_slice())
+            .map_err(|e| ConversionsError::SshKey(e))?;
+
+        Ok(ssh_key::PublicKey::new(
+            ssh_key::public::KeyData::Other(ssh_key::public::OpaquePublicKey {
+                algorithm: ssh_key::Algorithm::Other(
+                    ssh_key::AlgorithmName::new(ALGORITHM_NAME)
+                        .map_err(|e| ConversionsError::SshKeyLabel(e))?,
+                ),
+                key: opaque_key_bytes,
+            }),
+            pk.comment,
+        ))
+    }
+
+    /// try to convert a Multikey to an ssh_key::PrivateKey
+    fn to_ssh_private_key(&self) -> Result<ssh_key::PrivateKey, Error> {
+        let secret_bytes = {
+            let kd = self.mk.key_data_view()?;
+            let secret_bytes = kd.borrow().secret_bytes()?;
+            secret_bytes
+        };
+
+        let mut buf: Vec<u8> = Vec::new();
+        secret_bytes
+            .encode(&mut buf)
+            .map_err(|e| ConversionsError::SshEncoding(e))?;
+        let opaque_private_key_bytes =
+            ssh_key::private::OpaquePrivateKeyBytes::decode(&mut buf.as_slice())
+                .map_err(|e| ConversionsError::SshKey(e))?;
+
+        let pk = self.to_public_key()?;
+        let key_bytes = {
+            let kd = pk.key_data_view()?;
+            let key_bytes = kd.borrow().key_bytes()?;
+            key_bytes
+        };
+
+        buf.clear();
+        key_bytes
+            .encode(&mut buf)
+            .map_err(|e| ConversionsError::SshEncoding(e))?;
+        let opaque_public_key_bytes =
+            ssh_key::public::OpaquePublicKeyBytes::decode(&mut buf.as_slice())
+                .map_err(|e| ConversionsError::SshKey(e))?;
+
+        Ok(ssh_key::PrivateKey::new(
+            ssh_key::private::KeypairData::Other(ssh_key::private::OpaqueKeypair {
+                public: ssh_key::public::OpaquePublicKey {
+                    algorithm: ssh_key::Algorithm::Other(
+                        ssh_key::AlgorithmName::new(ALGORITHM_NAME)
+                            .map_err(|e| ConversionsError::SshKeyLabel(e))?,
+                    ),
+                    key: opaque_public_key_bytes,
+                },
+                private: opaque_private_key_bytes,
+            }),
+            self.mk.comment.clone(),
+        )
+        .map_err(|e| ConversionsError::SshKey(e))?)
     }
 }
 

@@ -175,6 +175,7 @@ impl<'a> FingerprintView for View<'a> {
 }
 
 impl<'a> KeyConvView for View<'a> {
+    /// try to convert a secret key to a public key
     fn to_public_key(&self) -> Result<Multikey, Error> {
         // get the secret key bytes
         let secret_bytes = {
@@ -196,6 +197,66 @@ impl<'a> KeyConvView for View<'a> {
             .with_comment(&self.mk.comment)
             .with_key_bytes(public_key.as_bytes())
             .try_build()
+    }
+
+    /// try to convert a Multikey to an ssh_key::PublicKey
+    fn to_ssh_public_key(&self) -> Result<ssh_key::PublicKey, Error> {
+        let mut pk = self.mk.clone();
+        if self.is_secret_key() {
+            pk = self.to_public_key()?;
+        }
+
+        let key_bytes = {
+            let kd = pk.key_data_view()?;
+            let key_bytes = kd.borrow().key_bytes()?;
+            key_bytes
+        };
+
+        // get the key bytes in a fix length slice
+        let bytes: [u8; PUBLIC_KEY_LENGTH] = key_bytes.as_slice()[..PUBLIC_KEY_LENGTH]
+            .try_into()
+            .map_err(|_| {
+            ConversionsError::PublicKeyFailure("failed to get key bytes".to_string())
+        })?;
+
+        Ok(ssh_key::PublicKey::new(
+            ssh_key::public::KeyData::Ed25519(ssh_key::public::Ed25519PublicKey(bytes)),
+            pk.comment,
+        ))
+    }
+
+    /// try to convert a Multikey to an ssh_key::PrivateKey
+    fn to_ssh_private_key(&self) -> Result<ssh_key::PrivateKey, Error> {
+        let secret_bytes = {
+            let kd = self.mk.key_data_view()?;
+            let secret_bytes = kd.borrow().secret_bytes()?;
+            secret_bytes
+        };
+
+        // build an Ed25519 signing key so that we can derive the verifying key
+        let bytes: [u8; SECRET_KEY_LENGTH] = secret_bytes.as_slice()[..SECRET_KEY_LENGTH]
+            .try_into()
+            .map_err(|_| {
+                ConversionsError::SecretKeyFailure("failed to get secret key bytes".to_string())
+            })?;
+
+        let pk = self.to_public_key()?;
+        let data = pk.key_data_view()?;
+        let public_bytes: [u8; PUBLIC_KEY_LENGTH] = data.borrow().key_bytes()?.as_slice()
+            [..PUBLIC_KEY_LENGTH]
+            .try_into()
+            .map_err(|_| {
+                ConversionsError::PublicKeyFailure("failed to get public key bytes".to_string())
+            })?;
+
+        Ok(ssh_key::PrivateKey::new(
+            ssh_key::private::KeypairData::Ed25519(ssh_key::private::Ed25519Keypair {
+                public: ssh_key::public::Ed25519PublicKey(public_bytes),
+                private: ssh_key::private::Ed25519PrivateKey::from_bytes(&bytes),
+            }),
+            self.mk.comment.clone(),
+        )
+        .map_err(|e| ConversionsError::SshKey(e))?)
     }
 }
 

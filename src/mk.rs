@@ -388,7 +388,7 @@ impl Builder {
                 })
             }
             Other(name) => match name.as_str() {
-                "Secp256K1" => {
+                secp256k1::ALGORITHM_NAME => {
                     let key_bytes = match sshkey.key_data() {
                         KeyData::Other(pk) => Some(pk.key.as_ref().to_vec().into()),
                         _ => {
@@ -480,7 +480,7 @@ impl Builder {
                 })
             }
             Other(name) => match name.as_str() {
-                "Secp256K1" => {
+                secp256k1::ALGORITHM_NAME => {
                     let key_bytes = match sshkey.key_data() {
                         KeypairData::Other(kp) => Some(kp.private.as_ref().to_vec().into()),
                         _ => {
@@ -619,6 +619,76 @@ mod tests {
             .unwrap();
         let s = mk.to_string();
         assert_eq!(mk, EncodedMultikey::try_from(s.as_str()).unwrap());
+    }
+
+    #[test]
+    fn test_ed25519_random_public_ssh_key_roundtrip() {
+        let mut rng = rand::rngs::OsRng::default();
+        let mk = Builder::new_from_random_bytes(Codec::Ed25519Priv, &mut rng)
+            .unwrap()
+            .with_comment("test key")
+            .try_build()
+            .unwrap();
+        let conv = mk.key_conv_view().unwrap();
+        let pk = conv.borrow().to_public_key().unwrap();
+        let ssh_key = conv.borrow().to_ssh_public_key().unwrap();
+        let mk2 = Builder::new_from_ssh_public_key(&ssh_key)
+            .unwrap()
+            .try_build()
+            .unwrap();
+        assert_eq!(pk, mk2);
+    }
+
+    #[test]
+    fn test_ed25519_random_private_ssh_key_roundtrip() {
+        let mut rng = rand::rngs::OsRng::default();
+        let mk = Builder::new_from_random_bytes(Codec::Ed25519Priv, &mut rng)
+            .unwrap()
+            .with_comment("test key")
+            .try_build()
+            .unwrap();
+        let conv = mk.key_conv_view().unwrap();
+        let ssh_key = conv.borrow().to_ssh_private_key().unwrap();
+        let mk2 = Builder::new_from_ssh_private_key(&ssh_key)
+            .unwrap()
+            .try_build()
+            .unwrap();
+        assert_eq!(mk, mk2);
+    }
+
+    #[test]
+    fn test_secp256k1_random_public_ssh_key_roundtrip() {
+        let mut rng = rand::rngs::OsRng::default();
+        let mk = Builder::new_from_random_bytes(Codec::Secp256K1Priv, &mut rng)
+            .unwrap()
+            .with_comment("test key")
+            .try_build()
+            .unwrap();
+        let conv = mk.key_conv_view().unwrap();
+        let pk = conv.borrow().to_public_key().unwrap();
+        let ssh_key = conv.borrow().to_ssh_public_key().unwrap();
+        let mk2 = Builder::new_from_ssh_public_key(&ssh_key)
+            .unwrap()
+            .try_build()
+            .unwrap();
+        assert_eq!(pk, mk2);
+    }
+
+    #[test]
+    fn test_secp256k1_random_private_ssh_key_roundtrip() {
+        let mut rng = rand::rngs::OsRng::default();
+        let mk = Builder::new_from_random_bytes(Codec::Secp256K1Priv, &mut rng)
+            .unwrap()
+            .with_comment("test key")
+            .try_build()
+            .unwrap();
+        let conv = mk.key_conv_view().unwrap();
+        let ssh_key = conv.borrow().to_ssh_private_key().unwrap();
+        let mk2 = Builder::new_from_ssh_private_key(&ssh_key)
+            .unwrap()
+            .try_build()
+            .unwrap();
+        assert_eq!(mk, mk2);
     }
 
     #[test]
