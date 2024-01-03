@@ -76,6 +76,15 @@ pub enum AttributesError {
     /// Invalid attribute value
     #[error("Invalid attribute value {0}")]
     InvalidAttributeValue(u8),
+    /// No threshold
+    #[error("Missing threshold")]
+    MissingThreshold,
+    /// No limit
+    #[error("Missing limit")]
+    MissingLimit,
+    /// No key share identifier
+    #[error("Missing share identifier")]
+    MissingShareIdentifier,
 }
 
 /// Conversions errors created by this library
@@ -187,6 +196,9 @@ pub enum SignError {
     /// Signing failed
     #[error("Signing failed: {0}")]
     SigningFailed(String),
+    /// Missing scheme
+    #[error("Missing signature scheme")]
+    MissingScheme,
 }
 
 /// Verify errors created by this library

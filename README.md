@@ -1,8 +1,8 @@
 # Multikey
 
-A rust implementation of a
+A Rust implementation of a
 [multiformats](https://github.com/multiformats/multiformats) cryptographic key
-library.
+container.
 
 ## Current Status
 
@@ -13,7 +13,7 @@ P521 curves. Adding more will require adding sigils to multicodec for the
 codecs. For secret key cryptography, it supports AES128, AES192, AES256,
 ChaCha-128, and ChaCha-256 keys.
 
-## Multikey v1 Format 
+## Multikey Format 
 
 ```
 multikey

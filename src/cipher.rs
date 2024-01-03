@@ -118,7 +118,6 @@ mod tests {
 
         // derive a key for the cipher multikey to use
         let ciphermk = kdf
-            .borrow()
             .derive_key(b"for great justice, move every zig!")
             .unwrap();
 
@@ -134,25 +133,22 @@ mod tests {
         let cipher = mk.cipher_view(&ciphermk).unwrap();
 
         // encrypt the secret key
-        let mk = cipher.borrow().encrypt().unwrap();
+        let mk = cipher.encrypt().unwrap();
 
         // make sure all of the attributes are right
         let attr = mk.attr_view().unwrap();
-        assert!(attr.borrow().is_encrypted());
-        assert!(!attr.borrow().is_public_key());
-        assert!(attr.borrow().is_secret_key());
+        assert!(attr.is_encrypted());
+        assert!(!attr.is_public_key());
+        assert!(attr.is_secret_key());
         let kd = mk.key_data_view().unwrap();
-        assert!(kd.borrow().key_bytes().is_ok());
-        assert!(kd.borrow().secret_bytes().is_err());
+        assert!(kd.key_bytes().is_ok());
+        assert!(kd.secret_bytes().is_err());
         let cattr = mk.cipher_attr_view().unwrap();
-        assert_eq!(
-            Codec::Chacha20Poly1305,
-            cattr.borrow().cipher_codec().unwrap()
-        );
-        assert!(cattr.borrow().nonce_bytes().is_ok());
-        assert_eq!(8, cattr.borrow().nonce_length().unwrap());
-        assert_eq!(32, cattr.borrow().key_length().unwrap());
+        assert_eq!(Codec::Chacha20Poly1305, cattr.cipher_codec().unwrap());
+        assert!(cattr.nonce_bytes().is_ok());
+        assert_eq!(8, cattr.nonce_length().unwrap());
+        assert_eq!(32, cattr.key_length().unwrap());
         let kattr = mk.kdf_attr_view().unwrap();
-        assert_eq!(Codec::BcryptPbkdf, kattr.borrow().kdf_codec().unwrap());
+        assert_eq!(Codec::BcryptPbkdf, kattr.kdf_codec().unwrap());
     }
 }

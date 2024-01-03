@@ -121,15 +121,14 @@ mod tests {
         let kdf = ciphermk.kdf_view(&kdfmk).unwrap();
         // derive a key from the passphrase and add it to the cipher multikey
         let ciphermk = kdf
-            .borrow()
             .derive_key(b"for great justice, move every zig!")
             .unwrap();
 
         let kattr = ciphermk.kdf_attr_view().unwrap();
-        assert_eq!(Codec::BcryptPbkdf, kattr.borrow().kdf_codec().unwrap());
-        assert_eq!(salt, kattr.borrow().salt_bytes().unwrap().to_vec());
-        assert_eq!(salt.len(), kattr.borrow().salt_length().unwrap());
-        assert_eq!(10, kattr.borrow().rounds().unwrap());
+        assert_eq!(Codec::BcryptPbkdf, kattr.kdf_codec().unwrap());
+        assert_eq!(salt, kattr.salt_bytes().unwrap().to_vec());
+        assert_eq!(salt.len(), kattr.salt_length().unwrap());
+        assert_eq!(10, kattr.rounds().unwrap());
 
         let kd = ciphermk.key_data_view().unwrap();
         assert_eq!(
@@ -137,7 +136,7 @@ mod tests {
                 119, 109, 13, 221, 140, 26, 88, 179, 135, 17, 119, 25, 176, 99, 5, 2, 203, 25, 82,
                 16, 161, 246, 176, 139, 8, 101, 174, 7, 240, 67, 237, 107
             ],
-            kd.borrow().secret_bytes().unwrap().to_vec()
+            kd.secret_bytes().unwrap().to_vec()
         );
     }
 }

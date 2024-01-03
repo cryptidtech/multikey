@@ -53,6 +53,10 @@ impl<'a> AttrView for View<'a> {
     fn is_public_key(&self) -> bool {
         false
     }
+
+    fn is_secret_key_share(&self) -> bool {
+        false
+    }
 }
 
 impl<'a> KeyDataView for View<'a> {
@@ -144,14 +148,14 @@ impl<'a> CipherView for View<'a> {
         let cipher = self.cipher.ok_or_else(|| CipherError::MissingCodec)?;
         // make sure the viewed key is an encrypted secret key
         let attr = self.mk.attr_view()?;
-        if !attr.borrow().is_encrypted() || !attr.borrow().is_secret_key() {
+        if !attr.is_encrypted() || !attr.is_secret_key() {
             return Err(CipherError::DecryptionFailed.into());
         }
 
         // get the nonce data from the passed-in Multikey
         let nonce = {
             let cattr = cipher.cipher_attr_view()?;
-            let nonce = cattr.borrow().nonce_bytes()?;
+            let nonce = cattr.nonce_bytes()?;
             if nonce.len() != self.nonce_length()? {
                 return Err(CipherError::InvalidNonce.into());
             }
@@ -165,7 +169,7 @@ impl<'a> CipherView for View<'a> {
         // get the key data from the passed-in Multikey
         let key = {
             let kd = cipher.key_data_view()?;
-            let key = kd.borrow().secret_bytes()?;
+            let key = kd.secret_bytes()?;
             if key.len() != self.key_length()? {
                 return Err(CipherError::InvalidKey.into());
             }
@@ -179,7 +183,7 @@ impl<'a> CipherView for View<'a> {
         // get the encrypted key bytes from the viewed Multikey (self)
         let msg = {
             let attr = self.mk.key_data_view()?;
-            let msg = attr.borrow().key_bytes()?;
+            let msg = attr.key_bytes()?;
             msg
         };
 
@@ -207,7 +211,7 @@ impl<'a> CipherView for View<'a> {
         let cipher = self.cipher.ok_or_else(|| CipherError::MissingCodec)?;
         // make sure the viewed key is not encrypted
         let attr = self.mk.attr_view()?;
-        if attr.borrow().is_encrypted() {
+        if attr.is_encrypted() {
             return Err(
                 CipherError::EncryptionFailed("key is encrypted already".to_string()).into(),
             );
@@ -216,7 +220,7 @@ impl<'a> CipherView for View<'a> {
         // get the nonce data from the passed-in Multikey
         let nonce = {
             let cattr = cipher.cipher_attr_view()?;
-            let nonce = cattr.borrow().nonce_bytes()?;
+            let nonce = cattr.nonce_bytes()?;
             if nonce.len() != self.nonce_length()? {
                 return Err(CipherError::InvalidNonce.into());
             }
@@ -229,7 +233,7 @@ impl<'a> CipherView for View<'a> {
         // get the key data from the passed-in Multikey
         let key = {
             let kd = cipher.key_data_view()?;
-            let key = kd.borrow().secret_bytes()?;
+            let key = kd.secret_bytes()?;
             if key.len() != self.key_length()? {
                 return Err(CipherError::InvalidKey.into());
             }
@@ -242,7 +246,7 @@ impl<'a> CipherView for View<'a> {
         // get the secret bytes from the viewed Multikey
         let msg = {
             let kd = self.mk.key_data_view()?;
-            let msg = kd.borrow().secret_bytes()?;
+            let msg = kd.secret_bytes()?;
             msg
         };
 
@@ -252,16 +256,16 @@ impl<'a> CipherView for View<'a> {
         // prepare the cipher attributes
         let cattr = cipher.cipher_attr_view()?;
         let cipher_codec: Vec<u8> = cipher.codec.into();
-        let key_length: Vec<u8> = Varuint(cattr.borrow().key_length()?).into();
-        let nonce_length: Vec<u8> = Varuint(cattr.borrow().nonce_length()?).into();
+        let key_length: Vec<u8> = Varuint(cattr.key_length()?).into();
+        let nonce_length: Vec<u8> = Varuint(cattr.nonce_length()?).into();
         let is_encrypted: Vec<u8> = Varuint(true).into();
 
         // get a view on the kdf attributes
         let kattr = cipher.kdf_attr_view()?;
-        let kdf_codec: Vec<u8> = kattr.borrow().kdf_codec()?.into();
-        let salt = kattr.borrow().salt_bytes()?;
-        let salt_length: Vec<u8> = Varuint(kattr.borrow().salt_length()?).into();
-        let rounds: Vec<u8> = Varuint(kattr.borrow().rounds()?).into();
+        let kdf_codec: Vec<u8> = kattr.kdf_codec()?.into();
+        let salt = kattr.salt_bytes()?;
+        let salt_length: Vec<u8> = Varuint(kattr.salt_length()?).into();
+        let rounds: Vec<u8> = Varuint(kattr.rounds()?).into();
 
         // create a copy of the viewed Multikey (self) and add in the encrypted
         // key data as awell as the kdf and cipher attributes and data so that
@@ -291,7 +295,7 @@ impl<'a> FingerprintView for View<'a> {
         // get the key bytes
         let bytes = {
             let kd = self.mk.key_data_view()?;
-            let bytes = kd.borrow().key_bytes()?;
+            let bytes = kd.key_bytes()?;
             bytes
         };
         // hash the key bytes using the given codec

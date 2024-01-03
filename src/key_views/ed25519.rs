@@ -42,6 +42,10 @@ impl<'a> AttrView for View<'a> {
     fn is_public_key(&self) -> bool {
         self.mk.codec == Codec::Ed25519Pub
     }
+
+    fn is_secret_key_share(&self) -> bool {
+        false
+    }
 }
 
 impl<'a> KeyDataView for View<'a> {
@@ -153,19 +157,19 @@ impl<'a> KdfAttrView for View<'a> {
 impl<'a> FingerprintView for View<'a> {
     fn fingerprint(&self, codec: Codec) -> Result<Multihash, Error> {
         let attr = self.mk.attr_view()?;
-        if attr.borrow().is_secret_key() {
+        if attr.is_secret_key() {
             // convert to a public key Multikey
             let pk = self.to_public_key()?;
             // get a conversions view on the public key
             let fp = pk.fingerprint_view()?;
             // get the fingerprint
-            let f = fp.borrow().fingerprint(codec)?;
+            let f = fp.fingerprint(codec)?;
             Ok(f)
         } else {
             // get the key bytes
             let bytes = {
                 let kd = self.mk.key_data_view()?;
-                let bytes = kd.borrow().key_bytes()?;
+                let bytes = kd.key_bytes()?;
                 bytes
             };
             // hash the key bytes using the given codec
@@ -180,7 +184,7 @@ impl<'a> KeyConvView for View<'a> {
         // get the secret key bytes
         let secret_bytes = {
             let kd = self.mk.key_data_view()?;
-            let secret_bytes = kd.borrow().secret_bytes()?;
+            let secret_bytes = kd.secret_bytes()?;
             secret_bytes
         };
 
@@ -208,7 +212,7 @@ impl<'a> KeyConvView for View<'a> {
 
         let key_bytes = {
             let kd = pk.key_data_view()?;
-            let key_bytes = kd.borrow().key_bytes()?;
+            let key_bytes = kd.key_bytes()?;
             key_bytes
         };
 
@@ -229,7 +233,7 @@ impl<'a> KeyConvView for View<'a> {
     fn to_ssh_private_key(&self) -> Result<ssh_key::PrivateKey, Error> {
         let secret_bytes = {
             let kd = self.mk.key_data_view()?;
-            let secret_bytes = kd.borrow().secret_bytes()?;
+            let secret_bytes = kd.secret_bytes()?;
             secret_bytes
         };
 
@@ -242,7 +246,7 @@ impl<'a> KeyConvView for View<'a> {
 
         let pk = self.to_public_key()?;
         let data = pk.key_data_view()?;
-        let public_bytes: [u8; PUBLIC_KEY_LENGTH] = data.borrow().key_bytes()?.as_slice()
+        let public_bytes: [u8; PUBLIC_KEY_LENGTH] = data.key_bytes()?.as_slice()
             [..PUBLIC_KEY_LENGTH]
             .try_into()
             .map_err(|_| {
@@ -262,16 +266,16 @@ impl<'a> KeyConvView for View<'a> {
 
 impl<'a> SignView for View<'a> {
     /// try to create a Multisig by siging the passed-in data with the Multikey
-    fn sign(&self, msg: &[u8], combined: bool) -> Result<Multisig, Error> {
+    fn sign(&self, msg: &[u8], combined: bool, _scheme: Option<u8>) -> Result<Multisig, Error> {
         let attr = self.mk.attr_view()?;
-        if !attr.borrow().is_secret_key() {
+        if !attr.is_secret_key() {
             return Err(SignError::NotSigningKey.into());
         }
 
         // get the secret key bytes
         let secret_bytes = {
             let kd = self.mk.key_data_view()?;
-            let secret_bytes = kd.borrow().secret_bytes()?;
+            let secret_bytes = kd.secret_bytes()?;
             secret_bytes
         };
 
@@ -291,7 +295,7 @@ impl<'a> SignView for View<'a> {
             .try_sign(msg)
             .map_err(|e| SignError::SigningFailed(e.to_string()))?;
 
-        let mut ms = ms::Builder::new(Codec::Ed25519Pub).with_signature_bytes(signature.to_bytes());
+        let mut ms = ms::Builder::new(Codec::Eddsa).with_signature_bytes(&signature.to_bytes());
         if combined {
             ms = ms.with_message_bytes(&msg);
         }
@@ -303,9 +307,9 @@ impl<'a> VerifyView for View<'a> {
     /// try to verify a Multisig using the Multikey
     fn verify(&self, multisig: &Multisig, msg: Option<&[u8]>) -> Result<(), Error> {
         let attr = self.mk.attr_view()?;
-        let pubmk = if attr.borrow().is_secret_key() {
+        let pubmk = if attr.is_secret_key() {
             let kc = self.mk.key_conv_view()?;
-            let mk = kc.borrow().to_public_key()?;
+            let mk = kc.to_public_key()?;
             mk
         } else {
             self.mk.clone()
@@ -314,7 +318,7 @@ impl<'a> VerifyView for View<'a> {
         // get the secret key bytes
         let key_bytes = {
             let kd = pubmk.key_data_view()?;
-            let key_bytes = kd.borrow().key_bytes()?;
+            let key_bytes = kd.key_bytes()?;
             key_bytes
         };
 
@@ -331,10 +335,7 @@ impl<'a> VerifyView for View<'a> {
 
         // get the signature data
         let sv = multisig.sig_data_view()?;
-        let sig = sv
-            .borrow()
-            .sig_bytes()
-            .map_err(|_| VerifyError::MissingSignature)?;
+        let sig = sv.sig_bytes().map_err(|_| VerifyError::MissingSignature)?;
 
         // create the signature
         let sig = Signature::from_slice(sig.as_slice())

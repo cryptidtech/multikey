@@ -35,16 +35,16 @@ impl<'a> KdfView for View<'a> {
         // get the salt data and rounds attribute
         let (salt, salt_length, rounds) = {
             let kattr = kdf.kdf_attr_view()?;
-            let salt = kattr.borrow().salt_bytes()?;
-            let salt_length = kattr.borrow().salt_length()?;
-            let rounds = kattr.borrow().rounds()?;
+            let salt = kattr.salt_bytes()?;
+            let salt_length = kattr.salt_length()?;
+            let rounds = kattr.rounds()?;
             (salt, salt_length, rounds)
         };
 
         // get the key length from the viewed Multikey
         let key_length = {
             let cattr = self.mk.cipher_attr_view()?;
-            let key_length = cattr.borrow().key_length()?;
+            let key_length = cattr.key_length()?;
             key_length
         };
 

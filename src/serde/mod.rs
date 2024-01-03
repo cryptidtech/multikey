@@ -23,7 +23,7 @@ mod tests {
         // try to get the associated public key
         let mk = {
             let conv = sk.key_conv_view().unwrap();
-            let mk = conv.borrow().to_public_key().unwrap();
+            let mk = conv.to_public_key().unwrap();
             mk
         };
 
@@ -80,7 +80,7 @@ mod tests {
 
         let mk = {
             let conv = sk.key_conv_view().unwrap();
-            let mk = conv.borrow().to_public_key().unwrap();
+            let mk = conv.to_public_key().unwrap();
             mk
         };
 
@@ -120,12 +120,12 @@ mod tests {
             .unwrap();
 
         let attr = mk1.attr_view().unwrap();
-        assert_eq!(false, attr.borrow().is_encrypted());
-        assert_eq!(false, attr.borrow().is_public_key());
-        assert_eq!(true, attr.borrow().is_secret_key());
+        assert_eq!(false, attr.is_encrypted());
+        assert_eq!(false, attr.is_public_key());
+        assert_eq!(true, attr.is_secret_key());
         let kd = mk1.key_data_view().unwrap();
-        assert!(kd.borrow().key_bytes().is_ok());
-        assert!(kd.borrow().secret_bytes().is_ok());
+        assert!(kd.key_bytes().is_ok());
+        assert!(kd.secret_bytes().is_ok());
 
         let mk2 = {
             let salt =
@@ -147,13 +147,12 @@ mod tests {
             let kdf = ciphermk.kdf_view(&kdfmk).unwrap();
             // derive a key from the passphrase and add it to the cipher multikey
             let ciphermk = kdf
-                .borrow()
                 .derive_key(b"for great justice, move every zig!")
                 .unwrap();
             // get the cipher view
             let cipher = mk1.cipher_view(&ciphermk).unwrap();
             // encrypt the multikey using the cipher
-            let mk = cipher.borrow().encrypt().unwrap();
+            let mk = cipher.encrypt().unwrap();
             mk
         };
 
@@ -229,12 +228,12 @@ mod tests {
             .unwrap();
 
         let attr = mk1.attr_view().unwrap();
-        assert_eq!(false, attr.borrow().is_encrypted());
-        assert_eq!(false, attr.borrow().is_public_key());
-        assert_eq!(true, attr.borrow().is_secret_key());
+        assert_eq!(false, attr.is_encrypted());
+        assert_eq!(false, attr.is_public_key());
+        assert_eq!(true, attr.is_secret_key());
         let kd = mk1.key_data_view().unwrap();
-        assert!(kd.borrow().key_bytes().is_ok());
-        assert!(kd.borrow().secret_bytes().is_ok());
+        assert!(kd.key_bytes().is_ok());
+        assert!(kd.secret_bytes().is_ok());
 
         let mk2 = {
             let salt =
@@ -255,13 +254,12 @@ mod tests {
             let kdf = ciphermk.kdf_view(&kdfmk).unwrap();
             // derive a key from the passphrase and add it to the cipher multikey
             let ciphermk = kdf
-                .borrow()
                 .derive_key(b"for great justice, move every zig!")
                 .unwrap();
             // get the cipher view
             let cipher = mk1.cipher_view(&ciphermk).unwrap();
             // encrypt the multikey using the cipher
-            let mk = cipher.borrow().encrypt().unwrap();
+            let mk = cipher.encrypt().unwrap();
             mk
         };
 
@@ -335,12 +333,12 @@ mod tests {
             .unwrap();
 
         let attr = mk1.attr_view().unwrap();
-        assert_eq!(false, attr.borrow().is_encrypted());
-        assert_eq!(false, attr.borrow().is_public_key());
-        assert_eq!(true, attr.borrow().is_secret_key());
+        assert_eq!(false, attr.is_encrypted());
+        assert_eq!(false, attr.is_public_key());
+        assert_eq!(true, attr.is_secret_key());
         let kd = mk1.key_data_view().unwrap();
-        assert!(kd.borrow().key_bytes().is_ok());
-        assert!(kd.borrow().secret_bytes().is_ok());
+        assert!(kd.key_bytes().is_ok());
+        assert!(kd.secret_bytes().is_ok());
 
         let mk2 = {
             let salt =
@@ -362,13 +360,12 @@ mod tests {
             let kdf = ciphermk.kdf_view(&kdfmk).unwrap();
             // derive a key from the passphrase and add it to the cipher multikey
             let ciphermk = kdf
-                .borrow()
                 .derive_key(b"for great justice, move every zig!")
                 .unwrap();
             // get the cipher view
             let cipher = mk1.cipher_view(&ciphermk).unwrap();
             // encrypt the multikey using the cipher
-            let mk = cipher.borrow().encrypt().unwrap();
+            let mk = cipher.encrypt().unwrap();
             mk
         };
 
@@ -392,7 +389,7 @@ mod tests {
         // try to get the associated public key
         let pk = {
             let conv = sk.key_conv_view().unwrap();
-            let pk = conv.borrow().to_public_key().unwrap();
+            let pk = conv.to_public_key().unwrap();
             pk
         };
 

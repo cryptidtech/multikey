@@ -28,6 +28,12 @@ pub enum AttrId {
     KdfSalt,
     /// the rounds used to derive the encryption key, if encrypted
     KdfRounds,
+    /// the threshold key threshold
+    Threshold,
+    /// the threshold key limit
+    Limit,
+    /// the theshold key share identifier
+    ShareIdentifier,
 }
 
 impl AttrId {
@@ -49,6 +55,9 @@ impl AttrId {
             AttrId::KdfSaltLen => "kdf-salt-len",
             AttrId::KdfSalt => "kdf-salt",
             AttrId::KdfRounds => "kdf-rounds",
+            AttrId::Threshold => "threshold",
+            AttrId::Limit => "limit",
+            AttrId::ShareIdentifier => "share-identifier",
         }
     }
 }
@@ -74,6 +83,9 @@ impl TryFrom<u8> for AttrId {
             7 => Ok(AttrId::KdfSaltLen),
             8 => Ok(AttrId::KdfSalt),
             9 => Ok(AttrId::KdfRounds),
+            10 => Ok(AttrId::Threshold),
+            11 => Ok(AttrId::Limit),
+            12 => Ok(AttrId::ShareIdentifier),
             _ => Err(AttributesError::InvalidAttributeValue(c).into()),
         }
     }
@@ -89,7 +101,7 @@ impl Into<Vec<u8>> for AttrId {
 impl<'a> TryFrom<&'a [u8]> for AttrId {
     type Error = Error;
 
-    fn try_from(bytes: &'a [u8]) -> Result<AttrId, Error> {
+    fn try_from(bytes: &'a [u8]) -> Result<Self, Self::Error> {
         let (id, _) = Self::try_decode_from(bytes)?;
         Ok(id)
     }
@@ -108,7 +120,7 @@ impl TryFrom<&str> for AttrId {
     type Error = Error;
 
     fn try_from(s: &str) -> Result<Self, Self::Error> {
-        match s {
+        match s.to_ascii_lowercase().as_str() {
             "key-is-encrypted" => Ok(AttrId::KeyIsEncrypted),
             "key-data" => Ok(AttrId::KeyData),
             "cipher-codec" => Ok(AttrId::CipherCodec),
@@ -119,6 +131,9 @@ impl TryFrom<&str> for AttrId {
             "kdf-salt" => Ok(AttrId::KdfSalt),
             "kdf-salt-len" => Ok(AttrId::KdfSaltLen),
             "kdf-rounds" => Ok(AttrId::KdfRounds),
+            "threshold" => Ok(AttrId::Threshold),
+            "limit" => Ok(AttrId::Limit),
+            "share-identifier" => Ok(AttrId::ShareIdentifier),
             _ => Err(AttributesError::InvalidAttributeName(s.to_string()).into()),
         }
     }

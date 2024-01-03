@@ -2,11 +2,11 @@ use crate::{Error, Multikey};
 use multicodec::Codec;
 use multihash::Multihash;
 use multisig::Multisig;
-use std::{cell::RefCell, rc::Rc};
 use zeroize::Zeroizing;
 
 // algorithms implement different sets of view
 pub(crate) mod bcrypt;
+pub(crate) mod bls12381;
 pub(crate) mod chacha20;
 pub(crate) mod ed25519;
 pub(crate) mod secp256k1;
@@ -28,6 +28,8 @@ pub trait AttrView {
     /// codecs, this is always true. for public key encryption codecs, this
     /// is true if this key is the secret key of the key pair.
     fn is_secret_key(&self) -> bool;
+    /// is this key a share of a split secret key?
+    fn is_secret_key_share(&self) -> bool;
 }
 
 /// trait for viewing the cipher attributes in a Multikey
@@ -52,6 +54,16 @@ pub trait KdfAttrView {
     fn salt_length(&self) -> Result<usize, Error>;
     /// get the number of rounds for the KDF function from the viewed multikey
     fn rounds(&self) -> Result<usize, Error>;
+}
+
+/// trait for viewing the threshold key attributes in a Multikey
+pub trait ThresholdAttrView {
+    /// get the threshold value for the multikey
+    fn threshold(&self) -> Result<usize, Error>;
+    /// get the limit value for the multikey
+    fn limit(&self) -> Result<usize, Error>;
+    /// get the share identifier for the multikey
+    fn identifier(&self) -> Result<u8, Error>;
 }
 
 /// trait for returning the key data from a Multikey
@@ -117,7 +129,7 @@ pub trait KeyConvView {
 /// trait for digially signing data using a multikey
 pub trait SignView {
     /// try to create a Multisig by siging the passed-in data with the Multikey
-    fn sign(&self, msg: &[u8], combined: bool) -> Result<Multisig, Error>;
+    fn sign(&self, msg: &[u8], combined: bool, scheme: Option<u8>) -> Result<Multisig, Error>;
 }
 
 /// trait for verifying digial signatures using a multikey
@@ -129,26 +141,25 @@ pub trait VerifyView {
 /// trait for getting the other views
 pub trait KeyViews {
     /// Provide a read-only view of the basic attributes in the viewed Multikey
-    fn attr_view<'a>(&'a self) -> Result<Rc<RefCell<dyn AttrView + 'a>>, Error>;
+    fn attr_view<'a>(&'a self) -> Result<Box<dyn AttrView + 'a>, Error>;
     /// Provide a read-only view of the cipher attributes in the viewed Multikey
-    fn cipher_attr_view<'a>(&'a self) -> Result<Rc<RefCell<dyn CipherAttrView + 'a>>, Error>;
+    fn cipher_attr_view<'a>(&'a self) -> Result<Box<dyn CipherAttrView + 'a>, Error>;
     /// Provide a read-only view of the kdf attributes in the viewed Multikey
-    fn kdf_attr_view<'a>(&'a self) -> Result<Rc<RefCell<dyn KdfAttrView + 'a>>, Error>;
+    fn kdf_attr_view<'a>(&'a self) -> Result<Box<dyn KdfAttrView + 'a>, Error>;
+    /// Provide a read-only view of the threshold attributes in the viewed Multikey
+    fn threshold_attr_view<'a>(&'a self) -> Result<Box<dyn ThresholdAttrView + 'a>, Error>;
     /// Provide a read-only view to key data in the viewed Multikey
-    fn key_data_view<'a>(&'a self) -> Result<Rc<RefCell<dyn KeyDataView + 'a>>, Error>;
+    fn key_data_view<'a>(&'a self) -> Result<Box<dyn KeyDataView + 'a>, Error>;
     /// Provide an interface to do encryption/decryption of the viewed Multikey
-    fn cipher_view<'a>(
-        &'a self,
-        cipher: &'a Multikey,
-    ) -> Result<Rc<RefCell<dyn CipherView + 'a>>, Error>;
+    fn cipher_view<'a>(&'a self, cipher: &'a Multikey) -> Result<Box<dyn CipherView + 'a>, Error>;
     /// Provide an interface to do key conversions from the viewe Multikey
-    fn fingerprint_view<'a>(&'a self) -> Result<Rc<RefCell<dyn FingerprintView + 'a>>, Error>;
+    fn fingerprint_view<'a>(&'a self) -> Result<Box<dyn FingerprintView + 'a>, Error>;
     /// Provide an interface to do kdf operations from the viewed Multikey
-    fn kdf_view<'a>(&'a self, kdf: &'a Multikey) -> Result<Rc<RefCell<dyn KdfView + 'a>>, Error>;
+    fn kdf_view<'a>(&'a self, kdf: &'a Multikey) -> Result<Box<dyn KdfView + 'a>, Error>;
     /// Provide an interface to do key conversions from the viewe Multikey
-    fn key_conv_view<'a>(&'a self) -> Result<Rc<RefCell<dyn KeyConvView + 'a>>, Error>;
+    fn key_conv_view<'a>(&'a self) -> Result<Box<dyn KeyConvView + 'a>, Error>;
     /// Provide an interface to sign a message and return a Multisig
-    fn sign_view<'a>(&'a self) -> Result<Rc<RefCell<dyn SignView + 'a>>, Error>;
+    fn sign_view<'a>(&'a self) -> Result<Box<dyn SignView + 'a>, Error>;
     /// Provide an interface to verify a Multisig and optional message
-    fn verify_view<'a>(&'a self) -> Result<Rc<RefCell<dyn VerifyView + 'a>>, Error>;
+    fn verify_view<'a>(&'a self) -> Result<Box<dyn VerifyView + 'a>, Error>;
 }
