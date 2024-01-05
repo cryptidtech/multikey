@@ -7,8 +7,50 @@ mod tests {
     use crate::{cipher, kdf, nonce, Builder, EncodedMultikey, KeyViews, Multikey};
     use multibase::Base;
     use multicodec::Codec;
+    use multihash::EncodedMultihash;
     use multiutil::BaseEncoded;
+    use serde::{Deserialize, Serialize};
     use serde_test::{assert_tokens, Configure, Token};
+    use std::collections::BTreeMap;
+
+    #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+    struct Wrapper {
+        pub map: BTreeMap<EncodedMultihash, Multikey>,
+    }
+
+    #[test]
+    fn test_serde_macros() {
+        let bytes = hex::decode("7e48467029ffb9f6282b56e9ce131cead6e4bd061a3500697c57ac7034cf86f2")
+            .unwrap();
+        let sk = Builder::new(Codec::Ed25519Priv)
+            .with_comment("test key")
+            .with_key_bytes(&bytes)
+            .try_build()
+            .unwrap();
+        let skh = {
+            let fv = sk.fingerprint_view().unwrap();
+            EncodedMultihash::new(Base::Base58Btc, fv.fingerprint(Codec::Blake2S256).unwrap())
+        };
+        let pk = {
+            let cv = sk.key_conv_view().unwrap();
+            cv.to_public_key().unwrap()
+        };
+        let pkh = {
+            let fv = sk.fingerprint_view().unwrap();
+            EncodedMultihash::new(Base::Base58Btc, fv.fingerprint(Codec::Blake2S256).unwrap())
+        };
+
+        let mut w1 = Wrapper::default();
+        w1.map.insert(skh, sk);
+        w1.map.insert(pkh, pk);
+
+        let b = serde_cbor::to_vec(&w1).unwrap();
+        let w2 = serde_cbor::from_slice(b.as_slice()).unwrap();
+        assert_eq!(w1, w2);
+        let s = serde_json::to_string(&w1).unwrap();
+        let w3 = serde_json::from_str(&s).unwrap();
+        assert_eq!(w1, w3);
+    }
 
     #[test]
     fn test_serde_compact() {
