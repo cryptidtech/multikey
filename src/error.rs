@@ -20,6 +20,9 @@ pub enum Error {
     /// Sign error
     #[error(transparent)]
     Sign(#[from] SignError),
+    /// Threshold error
+    #[error(transparent)]
+    Threshold(#[from] ThresholdError),
     /// Verify error
     #[error(transparent)]
     Verify(#[from] VerifyError),
@@ -52,6 +55,9 @@ pub enum Error {
     /// Incorrect Multikey sigil
     #[error("Missing Multikey sigil")]
     MissingSigil,
+    /// Unsupported key algorithm
+    #[error("Unsupported key algorithm: {0}")]
+    UnsupportedAlgorithm(String),
 }
 
 /// Attributes errors created by this library
@@ -85,6 +91,9 @@ pub enum AttributesError {
     /// No key share identifier
     #[error("Missing share identifier")]
     MissingShareIdentifier,
+    /// No threshold data
+    #[error("Missing threshold data")]
+    MissingThresholdData,
 }
 
 /// Conversions errors created by this library
@@ -199,6 +208,30 @@ pub enum SignError {
     /// Missing scheme
     #[error("Missing signature scheme")]
     MissingScheme,
+}
+
+/// Threshold errors created by this library
+#[derive(Clone, Debug, thiserror::Error)]
+#[non_exhaustive]
+pub enum ThresholdError {
+    /// Bls error
+    #[error(transparent)]
+    Bls(#[from] blsful::BlsError),
+    /// Invalid threshold and limit
+    #[error("Invalid threshold ({0}) and limit ({1}). Limit must be greater than threshold")]
+    InvalidThresholdLimit(usize, usize),
+    /// Not a secret key
+    #[error("Not a secret key; only secret keys may be split and combined")]
+    NotASecretKey,
+    /// Is a key share when we expect a key
+    #[error("Is a key share when we expect a key")]
+    IsAKeyShare,
+    /// Not enough shares
+    #[error("Not enough shares to combine")]
+    NotEnoughShares,
+    /// Share combine failed
+    #[error("Combining secret key shares failed: {0}")]
+    ShareCombineFailed(String),
 }
 
 /// Verify errors created by this library

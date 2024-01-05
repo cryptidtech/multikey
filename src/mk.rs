@@ -2,7 +2,7 @@ use crate::{
     error::{AttributesError, CipherError, ConversionsError, KdfError},
     key_views::{bcrypt, bls12381, chacha20, ed25519, secp256k1},
     AttrId, AttrView, CipherAttrView, CipherView, Error, FingerprintView, KdfAttrView, KdfView,
-    KeyConvView, KeyDataView, KeyViews, SignView, ThresholdAttrView, VerifyView,
+    KeyConvView, KeyDataView, KeyViews, SignView, ThresholdAttrView, ThresholdView, VerifyView,
 };
 
 use multibase::Base;
@@ -157,9 +157,11 @@ impl KeyViews for Multikey {
             Codec::Bls12381G1PrivShare
             | Codec::Bls12381G1Priv
             | Codec::Bls12381G1Pub
+            | Codec::Bls12381G1PubShare
             | Codec::Bls12381G2PrivShare
             | Codec::Bls12381G2Priv
-            | Codec::Bls12381G2Pub => Ok(Box::new(bls12381::View::try_from(self)?)),
+            | Codec::Bls12381G2Pub
+            | Codec::Bls12381G2PubShare => Ok(Box::new(bls12381::View::try_from(self)?)),
             Codec::Ed25519Pub | Codec::Ed25519Priv => Ok(Box::new(ed25519::View::try_from(self)?)),
             Codec::Secp256K1Pub | Codec::Secp256K1Priv => {
                 Ok(Box::new(secp256k1::View::try_from(self)?))
@@ -201,9 +203,11 @@ impl KeyViews for Multikey {
             Codec::Bls12381G1PrivShare
             | Codec::Bls12381G1Priv
             | Codec::Bls12381G1Pub
+            | Codec::Bls12381G1PubShare
             | Codec::Bls12381G2PrivShare
             | Codec::Bls12381G2Priv
-            | Codec::Bls12381G2Pub => Ok(Box::new(bls12381::View::try_from(self)?)),
+            | Codec::Bls12381G2Pub
+            | Codec::Bls12381G2PubShare => Ok(Box::new(bls12381::View::try_from(self)?)),
             _ => Err(ConversionsError::UnsupportedCodec(self.codec).into()),
         }
     }
@@ -214,9 +218,11 @@ impl KeyViews for Multikey {
             Codec::Bls12381G1PrivShare
             | Codec::Bls12381G1Priv
             | Codec::Bls12381G1Pub
+            | Codec::Bls12381G1PubShare
             | Codec::Bls12381G2PrivShare
             | Codec::Bls12381G2Priv
-            | Codec::Bls12381G2Pub => Ok(Box::new(bls12381::View::try_from(self)?)),
+            | Codec::Bls12381G2Pub
+            | Codec::Bls12381G2PubShare => Ok(Box::new(bls12381::View::try_from(self)?)),
             Codec::Ed25519Pub | Codec::Ed25519Priv => Ok(Box::new(ed25519::View::try_from(self)?)),
             Codec::Secp256K1Pub | Codec::Secp256K1Priv => {
                 Ok(Box::new(secp256k1::View::try_from(self)?))
@@ -240,9 +246,11 @@ impl KeyViews for Multikey {
             Codec::Bls12381G1PrivShare
             | Codec::Bls12381G1Priv
             | Codec::Bls12381G1Pub
+            | Codec::Bls12381G1PubShare
             | Codec::Bls12381G2PrivShare
             | Codec::Bls12381G2Priv
-            | Codec::Bls12381G2Pub => Ok(Box::new(bls12381::View::try_from(self)?)),
+            | Codec::Bls12381G2Pub
+            | Codec::Bls12381G2PubShare => Ok(Box::new(bls12381::View::try_from(self)?)),
             Codec::Ed25519Pub | Codec::Ed25519Priv => Ok(Box::new(ed25519::View::try_from(self)?)),
             Codec::Secp256K1Pub | Codec::Secp256K1Priv => {
                 Ok(Box::new(secp256k1::View::try_from(self)?))
@@ -266,9 +274,11 @@ impl KeyViews for Multikey {
             Codec::Bls12381G1PrivShare
             | Codec::Bls12381G1Priv
             | Codec::Bls12381G1Pub
+            | Codec::Bls12381G1PubShare
             | Codec::Bls12381G2PrivShare
             | Codec::Bls12381G2Priv
-            | Codec::Bls12381G2Pub => Ok(Box::new(bls12381::View::try_from(self)?)),
+            | Codec::Bls12381G2Pub
+            | Codec::Bls12381G2PubShare => Ok(Box::new(bls12381::View::try_from(self)?)),
             Codec::Ed25519Pub | Codec::Ed25519Priv => Ok(Box::new(ed25519::View::try_from(self)?)),
             Codec::Secp256K1Pub | Codec::Secp256K1Priv => {
                 Ok(Box::new(secp256k1::View::try_from(self)?))
@@ -283,12 +293,24 @@ impl KeyViews for Multikey {
             Codec::Bls12381G1PrivShare
             | Codec::Bls12381G1Priv
             | Codec::Bls12381G1Pub
+            | Codec::Bls12381G1PubShare
             | Codec::Bls12381G2PrivShare
             | Codec::Bls12381G2Priv
-            | Codec::Bls12381G2Pub => Ok(Box::new(bls12381::View::try_from(self)?)),
+            | Codec::Bls12381G2Pub
+            | Codec::Bls12381G2PubShare => Ok(Box::new(bls12381::View::try_from(self)?)),
             Codec::Ed25519Pub | Codec::Ed25519Priv => Ok(Box::new(ed25519::View::try_from(self)?)),
             Codec::Secp256K1Pub | Codec::Secp256K1Priv => {
                 Ok(Box::new(secp256k1::View::try_from(self)?))
+            }
+            _ => Err(ConversionsError::UnsupportedCodec(self.codec).into()),
+        }
+    }
+
+    /// Provide an interface to do threshold operations on the Multikey
+    fn threshold_view<'a>(&'a self) -> Result<Box<dyn ThresholdView + 'a>, Error> {
+        match self.codec {
+            Codec::Bls12381G1Priv | Codec::Bls12381G2Priv => {
+                Ok(Box::new(bls12381::View::try_from(self)?))
             }
             _ => Err(ConversionsError::UnsupportedCodec(self.codec).into()),
         }
@@ -300,9 +322,11 @@ impl KeyViews for Multikey {
             Codec::Bls12381G1PrivShare
             | Codec::Bls12381G1Priv
             | Codec::Bls12381G1Pub
+            | Codec::Bls12381G1PubShare
             | Codec::Bls12381G2PrivShare
             | Codec::Bls12381G2Priv
-            | Codec::Bls12381G2Pub => Ok(Box::new(bls12381::View::try_from(self)?)),
+            | Codec::Bls12381G2Pub
+            | Codec::Bls12381G2PubShare => Ok(Box::new(bls12381::View::try_from(self)?)),
             Codec::Ed25519Pub | Codec::Ed25519Priv => Ok(Box::new(ed25519::View::try_from(self)?)),
             Codec::Secp256K1Pub | Codec::Secp256K1Priv => {
                 Ok(Box::new(secp256k1::View::try_from(self)?))
@@ -320,6 +344,7 @@ pub struct Builder {
     comment: Option<String>,
     base_encoding: Option<Base>,
     attributes: Option<Attributes>,
+    shares: Option<Vec<Multikey>>,
 }
 
 impl Builder {
@@ -414,7 +439,7 @@ impl Builder {
                     codec,
                     comment: Some(sshkey.comment().to_string()),
                     attributes: Some(attributes),
-                    base_encoding: None,
+                    ..Default::default()
                 })
             }
             Other(name) => match name.as_str() {
@@ -434,7 +459,7 @@ impl Builder {
                         codec: Codec::Secp256K1Pub,
                         comment: Some(sshkey.comment().to_string()),
                         attributes: Some(attributes),
-                        base_encoding: None,
+                        ..Default::default()
                     })
                 }
                 bls12381::ALGORITHM_NAME_G1 => {
@@ -453,7 +478,7 @@ impl Builder {
                         codec: Codec::Bls12381G1Pub,
                         comment: Some(sshkey.comment().to_string()),
                         attributes: Some(attributes),
-                        base_encoding: None,
+                        ..Default::default()
                     })
                 }
                 bls12381::ALGORITHM_NAME_G1_SHARE => {
@@ -466,13 +491,20 @@ impl Builder {
                             .into())
                         }
                     };
+                    let key_share = bls12381::KeyShare::try_from(key_bytes.as_ref())?;
+                    let identifier: Vec<u8> = Varuint(key_share.0).into();
+                    let threshold: Vec<u8> = Varuint(key_share.1).into();
+                    let limit: Vec<u8> = Varuint(key_share.2).into();
                     let mut attributes = Attributes::new();
-                    attributes.insert(AttrId::KeyData, key_bytes.into());
+                    attributes.insert(AttrId::ShareIdentifier, identifier.into());
+                    attributes.insert(AttrId::Threshold, threshold.into());
+                    attributes.insert(AttrId::Limit, limit.into());
+                    attributes.insert(AttrId::KeyData, key_share.3.into());
                     Ok(Builder {
                         codec: Codec::Bls12381G1PubShare,
                         comment: Some(sshkey.comment().to_string()),
                         attributes: Some(attributes),
-                        base_encoding: None,
+                        ..Default::default()
                     })
                 }
                 bls12381::ALGORITHM_NAME_G2 => {
@@ -491,7 +523,7 @@ impl Builder {
                         codec: Codec::Bls12381G2Pub,
                         comment: Some(sshkey.comment().to_string()),
                         attributes: Some(attributes),
-                        base_encoding: None,
+                        ..Default::default()
                     })
                 }
                 bls12381::ALGORITHM_NAME_G2_SHARE => {
@@ -504,13 +536,20 @@ impl Builder {
                             .into())
                         }
                     };
+                    let key_share = bls12381::KeyShare::try_from(key_bytes.as_ref())?;
+                    let identifier: Vec<u8> = Varuint(key_share.0).into();
+                    let threshold: Vec<u8> = Varuint(key_share.1).into();
+                    let limit: Vec<u8> = Varuint(key_share.2).into();
                     let mut attributes = Attributes::new();
-                    attributes.insert(AttrId::KeyData, key_bytes.into());
+                    attributes.insert(AttrId::ShareIdentifier, identifier.into());
+                    attributes.insert(AttrId::Threshold, threshold.into());
+                    attributes.insert(AttrId::Limit, limit.into());
+                    attributes.insert(AttrId::KeyData, key_share.3.into());
                     Ok(Builder {
                         codec: Codec::Bls12381G1PubShare,
                         comment: Some(sshkey.comment().to_string()),
                         attributes: Some(attributes),
-                        base_encoding: None,
+                        ..Default::default()
                     })
                 }
                 s => return Err(ConversionsError::UnsupportedAlgorithm(s.to_string()).into()),
@@ -531,7 +570,7 @@ impl Builder {
                     codec: Codec::Ed25519Pub,
                     comment: Some(sshkey.comment().to_string()),
                     attributes: Some(attributes),
-                    base_encoding: None,
+                    ..Default::default()
                 })
             }
             _ => Err(ConversionsError::UnsupportedAlgorithm(sshkey.algorithm().to_string()).into()),
@@ -588,7 +627,7 @@ impl Builder {
                     codec,
                     comment: Some(sshkey.comment().to_string()),
                     attributes: Some(attributes),
-                    base_encoding: None,
+                    ..Default::default()
                 })
             }
             Other(name) => match name.as_str() {
@@ -608,7 +647,7 @@ impl Builder {
                         codec: Codec::Secp256K1Priv,
                         comment: Some(sshkey.comment().to_string()),
                         attributes: Some(attributes),
-                        base_encoding: None,
+                        ..Default::default()
                     })
                 }
                 bls12381::ALGORITHM_NAME_G1 => {
@@ -627,7 +666,7 @@ impl Builder {
                         codec: Codec::Bls12381G1Priv,
                         comment: Some(sshkey.comment().to_string()),
                         attributes: Some(attributes),
-                        base_encoding: None,
+                        ..Default::default()
                     })
                 }
                 bls12381::ALGORITHM_NAME_G1_SHARE => {
@@ -640,13 +679,20 @@ impl Builder {
                             .into())
                         }
                     };
+                    let key_share = bls12381::KeyShare::try_from(key_bytes.as_ref())?;
+                    let identifier: Vec<u8> = Varuint(key_share.0).into();
+                    let threshold: Vec<u8> = Varuint(key_share.1).into();
+                    let limit: Vec<u8> = Varuint(key_share.2).into();
                     let mut attributes = Attributes::new();
-                    attributes.insert(AttrId::KeyData, key_bytes.into());
+                    attributes.insert(AttrId::ShareIdentifier, identifier.into());
+                    attributes.insert(AttrId::Threshold, threshold.into());
+                    attributes.insert(AttrId::Limit, limit.into());
+                    attributes.insert(AttrId::KeyData, key_share.3.into());
                     Ok(Builder {
                         codec: Codec::Bls12381G1PrivShare,
                         comment: Some(sshkey.comment().to_string()),
                         attributes: Some(attributes),
-                        base_encoding: None,
+                        ..Default::default()
                     })
                 }
                 bls12381::ALGORITHM_NAME_G2 => {
@@ -665,7 +711,7 @@ impl Builder {
                         codec: Codec::Bls12381G2Priv,
                         comment: Some(sshkey.comment().to_string()),
                         attributes: Some(attributes),
-                        base_encoding: None,
+                        ..Default::default()
                     })
                 }
                 bls12381::ALGORITHM_NAME_G2_SHARE => {
@@ -678,13 +724,20 @@ impl Builder {
                             .into())
                         }
                     };
+                    let key_share = bls12381::KeyShare::try_from(key_bytes.as_ref())?;
+                    let identifier: Vec<u8> = Varuint(key_share.0).into();
+                    let threshold: Vec<u8> = Varuint(key_share.1).into();
+                    let limit: Vec<u8> = Varuint(key_share.2).into();
                     let mut attributes = Attributes::new();
-                    attributes.insert(AttrId::KeyData, key_bytes.into());
+                    attributes.insert(AttrId::ShareIdentifier, identifier.into());
+                    attributes.insert(AttrId::Threshold, threshold.into());
+                    attributes.insert(AttrId::Limit, limit.into());
+                    attributes.insert(AttrId::KeyData, key_share.3.into());
                     Ok(Builder {
                         codec: Codec::Bls12381G2PrivShare,
                         comment: Some(sshkey.comment().to_string()),
                         attributes: Some(attributes),
-                        base_encoding: None,
+                        ..Default::default()
                     })
                 }
                 s => return Err(ConversionsError::UnsupportedAlgorithm(s.to_string()).into()),
@@ -705,7 +758,7 @@ impl Builder {
                     codec: Codec::Ed25519Priv,
                     comment: Some(sshkey.comment().to_string()),
                     attributes: Some(attributes),
-                    base_encoding: None,
+                    ..Default::default()
                 })
             }
             _ => Err(ConversionsError::UnsupportedAlgorithm(sshkey.algorithm().to_string()).into()),
@@ -751,6 +804,19 @@ impl Builder {
         self.with_attribute(AttrId::ShareIdentifier, &Varuint(identifier).into())
     }
 
+    /// add in the threshold data
+    pub fn with_threshold_data(self, tdata: &impl AsRef<[u8]>) -> Self {
+        self.with_attribute(AttrId::ThresholdData, &tdata.as_ref().to_vec())
+    }
+
+    /// add a key share
+    pub fn add_key_share(mut self, share: &Multikey) -> Self {
+        let mut shares = self.shares.unwrap_or_default();
+        shares.push(share.clone());
+        self.shares = Some(shares);
+        self
+    }
+
     /// build a base encoded multikey
     pub fn try_build_encoded(self) -> Result<EncodedMultikey, Error> {
         Ok(BaseEncoded::new(
@@ -765,11 +831,22 @@ impl Builder {
         let codec = self.codec;
         let comment = self.comment.unwrap_or_default();
         let attributes = self.attributes.unwrap_or_default();
-        Ok(Multikey {
+        let mut mk = Multikey {
             codec,
             comment,
             attributes,
-        })
+        };
+        if let Some(shares) = self.shares {
+            for share in &shares {
+                mk = {
+                    let tv = mk.threshold_view()?;
+                    tv.add_share(share)?
+                };
+            }
+            Ok(mk)
+        } else {
+            Ok(mk)
+        }
     }
 }
 
@@ -800,7 +877,7 @@ mod tests {
             .try_build_encoded()
             .unwrap();
         let s = mk.to_string();
-        println!("ed25519: {}", s);
+        //println!("ed25519: {}", s);
         assert_eq!(mk, EncodedMultikey::try_from(s.as_str()).unwrap());
     }
 
@@ -826,7 +903,33 @@ mod tests {
             .try_build_encoded()
             .unwrap();
         let s = mk.to_string();
-        println!("secp256k1: {}", s);
+        //println!("secp256k1: {}", s);
+        assert_eq!(mk, EncodedMultikey::try_from(s.as_str()).unwrap());
+    }
+
+    #[test]
+    fn test_bls_random() {
+        let mut rng = rand::rngs::OsRng::default();
+        let mk = Builder::new_from_random_bytes(Codec::Bls12381G2Priv, &mut rng)
+            .unwrap()
+            .with_comment("test key")
+            .try_build()
+            .unwrap();
+        let v: Vec<u8> = mk.into();
+        assert_eq!(47, v.len());
+    }
+
+    #[test]
+    fn test_bls_encoded_random() {
+        let mut rng = rand::rngs::OsRng::default();
+        let mk = Builder::new_from_random_bytes(Codec::Bls12381G2Priv, &mut rng)
+            .unwrap()
+            .with_base_encoding(Base::Base58Btc)
+            .with_comment("test key")
+            .try_build_encoded()
+            .unwrap();
+        let s = mk.to_string();
+        //println!("bls12381g2: {}", s);
         assert_eq!(mk, EncodedMultikey::try_from(s.as_str()).unwrap());
     }
 
@@ -887,6 +990,41 @@ mod tests {
     fn test_secp256k1_random_private_ssh_key_roundtrip() {
         let mut rng = rand::rngs::OsRng::default();
         let mk = Builder::new_from_random_bytes(Codec::Secp256K1Priv, &mut rng)
+            .unwrap()
+            .with_comment("test key")
+            .try_build()
+            .unwrap();
+        let conv = mk.key_conv_view().unwrap();
+        let ssh_key = conv.to_ssh_private_key().unwrap();
+        let mk2 = Builder::new_from_ssh_private_key(&ssh_key)
+            .unwrap()
+            .try_build()
+            .unwrap();
+        assert_eq!(mk, mk2);
+    }
+
+    #[test]
+    fn test_bls_random_public_ssh_key_roundtrip() {
+        let mut rng = rand::rngs::OsRng::default();
+        let mk = Builder::new_from_random_bytes(Codec::Bls12381G1Priv, &mut rng)
+            .unwrap()
+            .with_comment("test key")
+            .try_build()
+            .unwrap();
+        let conv = mk.key_conv_view().unwrap();
+        let pk = conv.to_public_key().unwrap();
+        let ssh_key = conv.to_ssh_public_key().unwrap();
+        let mk2 = Builder::new_from_ssh_public_key(&ssh_key)
+            .unwrap()
+            .try_build()
+            .unwrap();
+        assert_eq!(pk, mk2);
+    }
+
+    #[test]
+    fn test_bls_random_private_ssh_key_roundtrip() {
+        let mut rng = rand::rngs::OsRng::default();
+        let mk = Builder::new_from_random_bytes(Codec::Bls12381G1Priv, &mut rng)
             .unwrap()
             .with_comment("test key")
             .try_build()
@@ -1156,6 +1294,157 @@ mod tests {
 
         let verifymk = mk.verify_view().unwrap();
         assert!(verifymk.verify(&signature, None).is_ok());
+    }
+
+    #[test]
+    fn test_bls_key_combine() {
+        let mut rng = rand::rngs::OsRng::default();
+        let mk1 = Builder::new_from_random_bytes(Codec::Bls12381G1Priv, &mut rng)
+            .unwrap()
+            .with_comment("test key")
+            .try_build()
+            .unwrap();
+        assert_eq!("test key".to_string(), mk1.comment);
+
+        let tv = mk1.threshold_view().unwrap();
+        let shares = tv.split(3, 4).unwrap();
+        assert_eq!(4, shares.len());
+        for share in &shares {
+            assert_eq!("test key".to_string(), share.comment);
+        }
+
+        let mut builder = Builder::new(Codec::Bls12381G1Priv).with_comment("test key");
+        for share in &shares {
+            builder = builder.add_key_share(share);
+        }
+        let mk2 = builder.try_build().unwrap();
+        assert_eq!("test key".to_string(), mk2.comment);
+
+        let av = mk2.threshold_attr_view().unwrap();
+        assert_eq!(3, av.threshold().unwrap());
+        assert_eq!(4, av.limit().unwrap());
+
+        let tv = mk2.threshold_view().unwrap();
+        let mk3 = tv.combine().unwrap();
+        assert_eq!("test key".to_string(), mk3.comment);
+
+        assert_eq!(mk1, mk3);
+    }
+
+    #[test]
+    fn test_ed25519_ssh_key_roundtrip() {
+        let mut rng = rand::rngs::OsRng::default();
+        let sk1 = Builder::new_from_random_bytes(Codec::Ed25519Priv, &mut rng)
+            .unwrap()
+            .with_comment("test key")
+            .try_build()
+            .unwrap();
+        let cv = sk1.key_conv_view().unwrap();
+        let public_key = cv.to_ssh_public_key().unwrap();
+        let private_key = cv.to_ssh_private_key().unwrap();
+
+        let pk1 = cv.to_public_key().unwrap();
+        let cv = pk1.key_conv_view().unwrap();
+        assert_eq!(public_key, cv.to_ssh_public_key().unwrap());
+
+        let sk2 = Builder::new_from_ssh_private_key(&private_key)
+            .unwrap()
+            .try_build()
+            .unwrap();
+        assert_eq!(sk1, sk2);
+        let pk2 = Builder::new_from_ssh_public_key(&public_key)
+            .unwrap()
+            .try_build()
+            .unwrap();
+        assert_eq!(pk1, pk2);
+    }
+
+    #[test]
+    fn test_secp256k1_ssh_key_roundtrip() {
+        let mut rng = rand::rngs::OsRng::default();
+        let sk1 = Builder::new_from_random_bytes(Codec::Secp256K1Priv, &mut rng)
+            .unwrap()
+            .with_comment("test key")
+            .try_build()
+            .unwrap();
+        let cv = sk1.key_conv_view().unwrap();
+        let public_key = cv.to_ssh_public_key().unwrap();
+        let private_key = cv.to_ssh_private_key().unwrap();
+
+        let pk1 = cv.to_public_key().unwrap();
+        let cv = pk1.key_conv_view().unwrap();
+        assert_eq!(public_key, cv.to_ssh_public_key().unwrap());
+
+        let sk2 = Builder::new_from_ssh_private_key(&private_key)
+            .unwrap()
+            .try_build()
+            .unwrap();
+        assert_eq!(sk1, sk2);
+        let pk2 = Builder::new_from_ssh_public_key(&public_key)
+            .unwrap()
+            .try_build()
+            .unwrap();
+        assert_eq!(pk1, pk2);
+    }
+
+    #[test]
+    fn test_bls_ssh_key_roundtrip() {
+        let mut rng = rand::rngs::OsRng::default();
+        let sk1 = Builder::new_from_random_bytes(Codec::Bls12381G1Priv, &mut rng)
+            .unwrap()
+            .with_comment("test key")
+            .try_build()
+            .unwrap();
+        let cv = sk1.key_conv_view().unwrap();
+        let public_key = cv.to_ssh_public_key().unwrap();
+        let private_key = cv.to_ssh_private_key().unwrap();
+
+        let pk1 = cv.to_public_key().unwrap();
+        let cv = pk1.key_conv_view().unwrap();
+        assert_eq!(public_key, cv.to_ssh_public_key().unwrap());
+
+        let sk2 = Builder::new_from_ssh_private_key(&private_key)
+            .unwrap()
+            .try_build()
+            .unwrap();
+        assert_eq!(sk1, sk2);
+        let pk2 = Builder::new_from_ssh_public_key(&public_key)
+            .unwrap()
+            .try_build()
+            .unwrap();
+        assert_eq!(pk1, pk2);
+    }
+
+    #[test]
+    fn test_bls_share_ssh_key_roundtrip() {
+        let mut rng = rand::rngs::OsRng::default();
+        let mk = Builder::new_from_random_bytes(Codec::Bls12381G1Priv, &mut rng)
+            .unwrap()
+            .with_comment("test key")
+            .try_build()
+            .unwrap();
+        let tv = mk.threshold_view().unwrap();
+        let sk1 = { tv.split(3, 4).unwrap()[0].clone() };
+
+        assert_eq!(Codec::Bls12381G1PrivShare, sk1.codec);
+        let cv = sk1.key_conv_view().unwrap();
+        let public_key = cv.to_ssh_public_key().unwrap();
+        let private_key = cv.to_ssh_private_key().unwrap();
+
+        let pk1 = cv.to_public_key().unwrap();
+        let cv = pk1.key_conv_view().unwrap();
+        assert_eq!(public_key, cv.to_ssh_public_key().unwrap());
+
+        let sk2 = Builder::new_from_ssh_private_key(&private_key)
+            .unwrap()
+            .try_build()
+            .unwrap();
+        assert_eq!(sk1, sk2);
+        let pk2 = Builder::new_from_ssh_public_key(&public_key)
+            .unwrap()
+            .try_build()
+            .unwrap();
+        assert_eq!(pk1, pk2);
     }
 
     #[test]

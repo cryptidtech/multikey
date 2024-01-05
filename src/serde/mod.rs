@@ -377,6 +377,69 @@ mod tests {
     }
 
     #[test]
+    fn test_serde_encrypted_bls_secret_key_share_json() {
+        /*
+        let bytes = hex::decode("4b79b6a7da7cdc9fe17e368450f08ae5a5f42347f4863f2ee23404f99aa62147")
+            .unwrap();
+        let mk1 = Builder::new(Codec::Bls12381G1Priv)
+            .with_comment("test key")
+            .with_key_bytes(&bytes)
+            .try_build()
+            .unwrap();
+        */
+
+        // build a secret key share multikey
+        let emk = EncodedMultikey::try_from(
+            "z2ayVAH5br3HWpoRqtVkpnmpnmNkNAZjMBxzpQEGDLjFdnrbmL54RL8B6QtX5K44cMXjU4G1VaeKjW",
+        )
+        .unwrap();
+        let mk1 = emk.to_inner();
+
+        let attr = mk1.attr_view().unwrap();
+        assert_eq!(false, attr.is_encrypted());
+        assert_eq!(false, attr.is_public_key());
+        assert_eq!(true, attr.is_secret_key());
+        let kd = mk1.key_data_view().unwrap();
+        assert!(kd.key_bytes().is_ok());
+        assert!(kd.secret_bytes().is_ok());
+
+        let mk2 = {
+            let salt =
+                hex::decode("621f20cfda140bd8bf83a899167428462929a41e9b68a8467bfc2455e9f98406")
+                    .unwrap();
+            let kdfmk = kdf::Builder::new(Codec::BcryptPbkdf)
+                .with_salt(&salt)
+                .with_rounds(10)
+                .try_build()
+                .unwrap();
+
+            let nonce = hex::decode("714e5abf0f7beae8").unwrap();
+            let ciphermk = cipher::Builder::new(Codec::Chacha20Poly1305)
+                .with_nonce(&nonce)
+                .try_build()
+                .unwrap();
+
+            // get the kdf view
+            let kdf = ciphermk.kdf_view(&kdfmk).unwrap();
+            // derive a key from the passphrase and add it to the cipher multikey
+            let ciphermk = kdf
+                .derive_key(b"for great justice, move every zig!")
+                .unwrap();
+            // get the cipher view
+            let cipher = mk1.cipher_view(&ciphermk).unwrap();
+            // encrypt the multikey using the cipher
+            let mk = cipher.encrypt().unwrap();
+            mk
+        };
+
+        let s = serde_json::to_string(&mk2).unwrap();
+        assert_eq!(s, "{\"codec\":\"bls12_381-g1-priv-share\",\"comment\":\"test key\",\"attributes\":[[\"key-is-encrypted\",\"f0101\"],[\"key-data\",\"f302729b798616b5db39bcfa0122fd8ed95a8d88495c17eee4bad84850e3fe0e8365daf123388dd33f49c1046dda1b51575\"],[\"cipher-codec\",\"f02a501\"],[\"cipher-key-len\",\"f0120\"],[\"cipher-nonce-len\",\"f0108\"],[\"cipher-nonce\",\"f08714e5abf0f7beae8\"],[\"kdf-codec\",\"f038da003\"],[\"kdf-salt-len\",\"f0120\"],[\"kdf-salt\",\"f20621f20cfda140bd8bf83a899167428462929a41e9b68a8467bfc2455e9f98406\"],[\"kdf-rounds\",\"f010a\"],[\"threshold\",\"f0103\"],[\"limit\",\"f0104\"],[\"share-identifier\",\"f0101\"]]}");
+
+        let mk3: Multikey = serde_json::from_str(&s).unwrap();
+        assert_eq!(mk2, mk3);
+    }
+
+    #[test]
     fn test_encoded_public_key() {
         let bytes = hex::decode("7e48467029ffb9f6282b56e9ce131cead6e4bd061a3500697c57ac7034cf86f2")
             .unwrap();

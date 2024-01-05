@@ -1,7 +1,10 @@
 use crate::{
-    error::{AttributesError, CipherError, ConversionsError, KdfError, SignError, VerifyError},
+    error::{
+        AttributesError, CipherError, ConversionsError, KdfError, SignError, ThresholdError,
+        VerifyError,
+    },
     AttrId, AttrView, Builder, CipherAttrView, Error, FingerprintView, KdfAttrView, KeyConvView,
-    KeyDataView, KeyViews, Multikey, SignView, ThresholdAttrView, VerifyView,
+    KeyDataView, KeyViews, Multikey, SignView, ThresholdAttrView, ThresholdView, VerifyView,
 };
 use blsful::{
     inner_types::{G1Projective, G2Projective},
@@ -12,9 +15,10 @@ use elliptic_curve::group::GroupEncoding;
 use multicodec::Codec;
 use multihash::{mh, Multihash};
 use multisig::{ms, sig_views::bls12381::SchemeTypeId, Multisig, SigViews};
-use multiutil::Varuint;
+use multitrait::TryDecodeFrom;
+use multiutil::{Varbytes, Varuint};
 use ssh_encoding::{Decode, Encode};
-use std::array::TryFromSliceError;
+use std::{array::TryFromSliceError, collections::BTreeMap};
 use vsss_rs::Share;
 use zeroize::Zeroizing;
 
@@ -27,6 +31,117 @@ pub const ALGORITHM_NAME_G2_SHARE: &'static str = "bls12_381-g2-share@multikey";
 // number of bytes in a G1 and G2 public key
 pub const G1_PUBLIC_KEY_BYTES: usize = 48;
 pub const G2_PUBLIC_KEY_BYTES: usize = 96;
+
+/// tuple of the key share data with threshold attributes
+#[derive(Clone)]
+pub struct KeyShare(
+    /// identifier
+    pub u8,
+    /// threshold,
+    pub usize,
+    /// limit
+    pub usize,
+    /// key bytes
+    pub Vec<u8>,
+);
+
+impl Into<Vec<u8>> for KeyShare {
+    fn into(self) -> Vec<u8> {
+        let mut v = Vec::default();
+        // add in the share identifier
+        v.append(&mut Varuint(self.0).into());
+        // add in the threshold
+        v.append(&mut Varuint(self.1).into());
+        // add in the limit
+        v.append(&mut Varuint(self.2).into());
+        // add in the key share data
+        v.append(&mut Varbytes(self.3.clone()).into());
+        v
+    }
+}
+
+impl<'a> TryFrom<&'a [u8]> for KeyShare {
+    type Error = Error;
+
+    fn try_from(bytes: &'a [u8]) -> Result<Self, Self::Error> {
+        let (share, _) = Self::try_decode_from(bytes)?;
+        Ok(share)
+    }
+}
+
+impl<'a> TryDecodeFrom<'a> for KeyShare {
+    type Error = Error;
+
+    fn try_decode_from(bytes: &'a [u8]) -> Result<(Self, &'a [u8]), Self::Error> {
+        // try to decode the identifier
+        let (id, ptr) = Varuint::<u8>::try_decode_from(bytes)?;
+        // try to decode the threshold
+        let (threshold, ptr) = Varuint::<usize>::try_decode_from(ptr)?;
+        // try to decode the limit
+        let (limit, ptr) = Varuint::<usize>::try_decode_from(ptr)?;
+        // try to decode the key share data
+        let (key_data, ptr) = Varbytes::try_decode_from(ptr)?;
+        Ok((
+            Self(
+                id.to_inner(),
+                threshold.to_inner(),
+                limit.to_inner(),
+                key_data.to_inner(),
+            ),
+            ptr,
+        ))
+    }
+}
+
+#[derive(Clone, Default)]
+pub(crate) struct ThresholdData(pub(crate) BTreeMap<u8, KeyShare>);
+
+impl Into<Vec<u8>> for ThresholdData {
+    fn into(self) -> Vec<u8> {
+        let mut v = Vec::default();
+        // add in the number of key shares
+        v.append(&mut Varuint(self.0.len()).into());
+        // add in the key shares
+        self.0.iter().for_each(|(_, share)| {
+            v.append(&mut share.clone().into());
+        });
+        v
+    }
+}
+
+impl<'a> TryFrom<&'a [u8]> for ThresholdData {
+    type Error = Error;
+
+    fn try_from(bytes: &'a [u8]) -> Result<Self, Self::Error> {
+        let (tdata, _) = Self::try_decode_from(bytes)?;
+        Ok(tdata)
+    }
+}
+
+impl<'a> TryDecodeFrom<'a> for ThresholdData {
+    type Error = Error;
+
+    fn try_decode_from(bytes: &'a [u8]) -> Result<(Self, &'a [u8]), Self::Error> {
+        // try to decode the number of shares
+        let (num_shares, ptr) = Varuint::<usize>::try_decode_from(bytes)?;
+        // decode the key-specific attributes
+        let (shares, ptr) = match *num_shares {
+            0 => (BTreeMap::default(), ptr),
+            _ => {
+                let mut shares = BTreeMap::new();
+                let mut p = ptr;
+                for _ in 0..*num_shares {
+                    let (share, ptr) = KeyShare::try_decode_from(p)?;
+                    shares.insert(share.0, share);
+                    p = ptr;
+                }
+                (shares, p)
+            }
+        };
+
+        Ok((Self(shares), ptr))
+    }
+}
 
 pub(crate) struct View<'a> {
     mk: &'a Multikey,
@@ -102,6 +217,15 @@ impl<'a> ThresholdAttrView for View<'a> {
             .get(&AttrId::ShareIdentifier)
             .ok_or(AttributesError::MissingShareIdentifier)?;
         Ok(*Varuint::<u8>::try_from(v.as_slice())?)
+    }
+    /// get the threshold data
+    fn threshold_data(&self) -> Result<&[u8], Error> {
+        let v = self
+            .mk
+            .attributes
+            .get(&AttrId::ThresholdData)
+            .ok_or(AttributesError::MissingThresholdData)?;
+        Ok(v.as_slice())
     }
 }
 
@@ -353,20 +477,54 @@ impl<'a> KeyConvView for View<'a> {
             key_bytes
         };
 
-        let mut buff: Vec<u8> = Vec::new();
-        key_bytes
-            .encode(&mut buff)
-            .map_err(|e| ConversionsError::SshEncoding(e))?;
-        let opaque_key_bytes = ssh_key::public::OpaquePublicKeyBytes::decode(&mut buff.as_slice())
-            .map_err(|e| ConversionsError::SshKey(e))?;
+        let mut buf: Vec<u8> = Vec::new();
 
-        let name = match self.mk.codec {
-            Codec::Bls12381G1Priv => ALGORITHM_NAME_G1,
-            Codec::Bls12381G1PrivShare => ALGORITHM_NAME_G1_SHARE,
-            Codec::Bls12381G2Priv => ALGORITHM_NAME_G2,
-            Codec::Bls12381G2PrivShare => ALGORITHM_NAME_G2_SHARE,
+        let name = match pk.codec {
+            Codec::Bls12381G1Pub => {
+                key_bytes
+                    .encode(&mut buf)
+                    .map_err(|e| ConversionsError::SshEncoding(e))?;
+                ALGORITHM_NAME_G1
+            }
+            Codec::Bls12381G1PubShare => {
+                let tav = pk.threshold_attr_view()?;
+                let key_share: Vec<u8> = KeyShare(
+                    tav.identifier()?,
+                    tav.threshold()?,
+                    tav.limit()?,
+                    key_bytes.to_vec(),
+                )
+                .into();
+                key_share
+                    .encode(&mut buf)
+                    .map_err(|e| ConversionsError::SshEncoding(e))?;
+                ALGORITHM_NAME_G1_SHARE
+            }
+            Codec::Bls12381G2Pub => {
+                key_bytes
+                    .encode(&mut buf)
+                    .map_err(|e| ConversionsError::SshEncoding(e))?;
+                ALGORITHM_NAME_G2
+            }
+            Codec::Bls12381G2PubShare => {
+                let tav = pk.threshold_attr_view()?;
+                let key_share: Vec<u8> = KeyShare(
+                    tav.identifier()?,
+                    tav.threshold()?,
+                    tav.limit()?,
+                    key_bytes.to_vec(),
+                )
+                .into();
+                key_share
+                    .encode(&mut buf)
+                    .map_err(|e| ConversionsError::SshEncoding(e))?;
+                ALGORITHM_NAME_G2_SHARE
+            }
             _ => return Err(ConversionsError::UnsupportedCodec(self.mk.codec).into()),
         };
+
+        let opaque_key_bytes = ssh_key::public::OpaquePublicKeyBytes::decode(&mut buf.as_slice())
+            .map_err(|e| ConversionsError::SshKey(e))?;
 
         Ok(ssh_key::PublicKey::new(
             ssh_key::public::KeyData::Other(ssh_key::public::OpaquePublicKey {
@@ -388,14 +546,6 @@ impl<'a> KeyConvView for View<'a> {
             secret_bytes
         };
 
-        let mut buf: Vec<u8> = Vec::new();
-        secret_bytes
-            .encode(&mut buf)
-            .map_err(|e| ConversionsError::SshEncoding(e))?;
-        let opaque_private_key_bytes =
-            ssh_key::private::OpaquePrivateKeyBytes::decode(&mut buf.as_slice())
-                .map_err(|e| ConversionsError::SshKey(e))?;
-
         let pk = self.to_public_key()?;
         let key_bytes = {
             let kd = pk.key_data_view()?;
@@ -403,21 +553,88 @@ impl<'a> KeyConvView for View<'a> {
             key_bytes
         };
 
-        buf.clear();
-        key_bytes
-            .encode(&mut buf)
-            .map_err(|e| ConversionsError::SshEncoding(e))?;
-        let opaque_public_key_bytes =
-            ssh_key::public::OpaquePublicKeyBytes::decode(&mut buf.as_slice())
-                .map_err(|e| ConversionsError::SshKey(e))?;
+        let mut secret_buf: Vec<u8> = Vec::new();
+        let mut public_buf: Vec<u8> = Vec::new();
 
         let name = match self.mk.codec {
-            Codec::Bls12381G1Priv => ALGORITHM_NAME_G1,
-            Codec::Bls12381G1PrivShare => ALGORITHM_NAME_G1_SHARE,
-            Codec::Bls12381G2Priv => ALGORITHM_NAME_G2,
-            Codec::Bls12381G2PrivShare => ALGORITHM_NAME_G2_SHARE,
+            Codec::Bls12381G1Priv => {
+                secret_bytes
+                    .encode(&mut secret_buf)
+                    .map_err(|e| ConversionsError::SshEncoding(e))?;
+                key_bytes
+                    .encode(&mut public_buf)
+                    .map_err(|e| ConversionsError::SshEncoding(e))?;
+                ALGORITHM_NAME_G1
+            }
+            Codec::Bls12381G1PrivShare => {
+                let sav = self.mk.threshold_attr_view()?;
+                let secret_key_share: Vec<u8> = KeyShare(
+                    sav.identifier()?,
+                    sav.threshold()?,
+                    sav.limit()?,
+                    secret_bytes.to_vec(),
+                )
+                .into();
+                let pav = pk.threshold_attr_view()?;
+                let public_key_share: Vec<u8> = KeyShare(
+                    pav.identifier()?,
+                    pav.threshold()?,
+                    pav.limit()?,
+                    key_bytes.to_vec(),
+                )
+                .into();
+                secret_key_share
+                    .encode(&mut secret_buf)
+                    .map_err(|e| ConversionsError::SshEncoding(e))?;
+                public_key_share
+                    .encode(&mut public_buf)
+                    .map_err(|e| ConversionsError::SshEncoding(e))?;
+                ALGORITHM_NAME_G1_SHARE
+            }
+            Codec::Bls12381G2Priv => {
+                secret_bytes
+                    .encode(&mut secret_buf)
+                    .map_err(|e| ConversionsError::SshEncoding(e))?;
+                key_bytes
+                    .encode(&mut public_buf)
+                    .map_err(|e| ConversionsError::SshEncoding(e))?;
+                ALGORITHM_NAME_G2
+            }
+            Codec::Bls12381G2PrivShare => {
+                let sav = self.mk.threshold_attr_view()?;
+                let secret_key_share: Vec<u8> = KeyShare(
+                    sav.identifier()?,
+                    sav.threshold()?,
+                    sav.limit()?,
+                    secret_bytes.to_vec(),
+                )
+                .into();
+                let pav = pk.threshold_attr_view()?;
+                let public_key_share: Vec<u8> = KeyShare(
+                    pav.identifier()?,
+                    pav.threshold()?,
+                    pav.limit()?,
+                    key_bytes.to_vec(),
+                )
+                .into();
+                secret_key_share
+                    .encode(&mut secret_buf)
+                    .map_err(|e| ConversionsError::SshEncoding(e))?;
+                public_key_share
+                    .encode(&mut public_buf)
+                    .map_err(|e| ConversionsError::SshEncoding(e))?;
+                ALGORITHM_NAME_G2_SHARE
+            }
             _ => return Err(ConversionsError::UnsupportedCodec(self.mk.codec).into()),
         };
+
+        let opaque_private_key_bytes =
+            ssh_key::private::OpaquePrivateKeyBytes::decode(&mut secret_buf.as_slice())
+                .map_err(|e| ConversionsError::SshKey(e))?;
+
+        let opaque_public_key_bytes =
+            ssh_key::public::OpaquePublicKeyBytes::decode(&mut public_buf.as_slice())
+                .map_err(|e| ConversionsError::SshKey(e))?;
 
         Ok(ssh_key::PrivateKey::new(
             ssh_key::private::KeypairData::Other(ssh_key::private::OpaqueKeypair {
@@ -552,6 +769,234 @@ impl<'a> SignView for View<'a> {
                 Ok(ms.try_build()?)
             }
             _ => Err(ConversionsError::UnsupportedCodec(self.mk.codec).into()),
+        }
+    }
+}
+
+impl<'a> ThresholdView for View<'a> {
+    /// try to split a Multikey into shares
+    fn split(&self, threshold: usize, limit: usize) -> Result<Vec<Multikey>, Error> {
+        if threshold > limit {
+            return Err(ThresholdError::InvalidThresholdLimit(threshold, limit).into());
+        }
+
+        let attr = self.mk.attr_view()?;
+        if !attr.is_secret_key() {
+            return Err(ThresholdError::NotASecretKey.into());
+        }
+
+        // get the secret key bytes
+        let secret_bytes = {
+            let kd = self.mk.key_data_view()?;
+            let secret_bytes = kd.secret_bytes()?;
+            secret_bytes
+        };
+
+        match self.mk.codec {
+            Codec::Bls12381G1Priv => {
+                let bytes: [u8; SECRET_KEY_BYTES] = secret_bytes.as_slice()[..SECRET_KEY_BYTES]
+                    .try_into()
+                    .map_err(|_| {
+                        ConversionsError::SecretKeyFailure(
+                            "failed to get secret key bytes".to_string(),
+                        )
+                    })?;
+                let secret_key: SecretKey<Bls12381G1Impl> = {
+                    let sk = Option::from(SecretKey::from_be_bytes(&bytes));
+                    sk.ok_or(ConversionsError::SecretKeyFailure(
+                        "failed to create secret key".to_string(),
+                    ))?
+                };
+                let key_shares = secret_key
+                    .split(threshold, limit)
+                    .map_err(|e| ThresholdError::Bls(e))?;
+
+                let mut shares = Vec::with_capacity(key_shares.len());
+
+                key_shares
+                    .iter()
+                    .try_for_each(|share| -> Result<(), Error> {
+                        let key_bytes = share.as_raw_value().value();
+                        let identifier = share.as_raw_value().identifier();
+
+                        let mk = Builder::new(Codec::Bls12381G1PrivShare)
+                            .with_comment(&self.mk.comment)
+                            .with_key_bytes(&key_bytes)
+                            .with_threshold(threshold)
+                            .with_limit(limit)
+                            .with_identifier(identifier)
+                            .try_build()?;
+                        shares.push(mk);
+                        Ok(())
+                    })?;
+
+                Ok(shares)
+            }
+            Codec::Bls12381G2Priv => {
+                let bytes: [u8; SECRET_KEY_BYTES] = secret_bytes.as_slice()[..SECRET_KEY_BYTES]
+                    .try_into()
+                    .map_err(|_| {
+                        ConversionsError::SecretKeyFailure(
+                            "failed to get secret key bytes".to_string(),
+                        )
+                    })?;
+                let secret_key: SecretKey<Bls12381G2Impl> = {
+                    let sk = Option::from(SecretKey::from_be_bytes(&bytes));
+                    sk.ok_or(ConversionsError::SecretKeyFailure(
+                        "failed to create secret key".to_string(),
+                    ))?
+                };
+
+                let key_shares = secret_key
+                    .split(threshold, limit)
+                    .map_err(|e| ThresholdError::Bls(e))?;
+
+                let mut shares = Vec::with_capacity(key_shares.len());
+
+                key_shares
+                    .iter()
+                    .try_for_each(|share| -> Result<(), Error> {
+                        let key_bytes = share.as_raw_value().value();
+                        let identifier = share.as_raw_value().identifier();
+
+                        let mk = Builder::new(Codec::Bls12381G2PrivShare)
+                            .with_comment(&self.mk.comment)
+                            .with_key_bytes(&key_bytes)
+                            .with_threshold(threshold)
+                            .with_limit(limit)
+                            .with_identifier(identifier)
+                            .try_build()?;
+                        shares.push(mk);
+                        Ok(())
+                    })?;
+
+                Ok(shares)
+            }
+            _ => Err(ConversionsError::UnsupportedCodec(self.mk.codec).into()),
+        }
+    }
+
+    /// add a new share and return the Multikey with the share added
+    fn add_share(&self, share: &Multikey) -> Result<Multikey, Error> {
+        // this only makes sense for secret keys
+        match self.mk.codec {
+            Codec::Bls12381G1Priv | Codec::Bls12381G2Priv => {}
+            Codec::Bls12381G1Pub | Codec::Bls12381G2Pub => {
+                return Err(ThresholdError::NotASecretKey.into())
+            }
+            Codec::Bls12381G1PubShare
+            | Codec::Bls12381G1PrivShare
+            | Codec::Bls12381G2PubShare
+            | Codec::Bls12381G2PrivShare => return Err(ThresholdError::IsAKeyShare.into()),
+            _ => return Err(Error::UnsupportedAlgorithm(self.mk.codec.to_string())),
+        }
+
+        let (key_share, identifier, threshold, limit) = {
+            // get the share attributes
+            let av = share.threshold_attr_view()?;
+            let identifier = av.identifier()?;
+            let threshold = av.threshold()?;
+            let limit = av.limit()?;
+            // get the key data
+            let dv = share.key_data_view()?;
+            let key_bytes = dv.key_bytes()?;
+            // return the data
+            (
+                KeyShare(identifier, threshold, limit, key_bytes.to_vec()),
+                identifier,
+                threshold,
+                limit,
+            )
+        };
+
+        let threshold_data: Vec<u8> = {
+            let av = self.mk.threshold_attr_view()?;
+            let mut tdata = match av.threshold_data() {
+                Ok(b) => ThresholdData::try_from(b).unwrap_or_default(),
+                Err(_) => ThresholdData::default(),
+            };
+            // insert the share data
+            tdata.0.insert(identifier, key_share);
+            tdata.into()
+        };
+
+        // if this multikey doesn't already have the threshold/limi set, then
+        // set it to match the values from the first share
+        let av = share.threshold_attr_view()?;
+        let threshold = av.threshold().unwrap_or(threshold);
+        let limit = av.limit().unwrap_or(limit);
+        let comment = if self.mk.comment.is_empty() {
+            share.comment.clone()
+        } else {
+            String::default()
+        };
+
+        Builder::new(self.mk.codec)
+            .with_comment(&comment)
+            .with_threshold(threshold)
+            .with_limit(limit)
+            .with_threshold_data(&threshold_data)
+            .try_build()
+    }
+
+    /// reconstruct the key from teh shares
+    fn combine(&self) -> Result<Multikey, Error> {
+        // get the current threshold data
+        let (threshold_data, threshold) = {
+            let av = self.mk.threshold_attr_view()?;
+            (
+                match av.threshold_data() {
+                    Ok(b) => ThresholdData::try_from(b).unwrap_or_default(),
+                    Err(_) => ThresholdData::default(),
+                },
+                av.threshold()?,
+            )
+        };
+
+        // check that we have enough shares to combine
+        let num_shares = threshold_data.0.len();
+        if num_shares < threshold {
+            return Err(ThresholdError::NotEnoughShares.into());
+        }
+
+        match self.mk.codec {
+            Codec::Bls12381G1Priv => {
+                let mut shares = Vec::with_capacity(threshold_data.0.len());
+                threshold_data
+                    .0
+                    .iter()
+                    .try_for_each(|(id, share)| -> Result<(), Error> {
+                        let vsss = Share::with_identifier_and_value(*id, share.3.as_slice());
+                        shares.push(SecretKeyShare::<Bls12381G1Impl>(vsss));
+                        Ok(())
+                    })?;
+                let key = SecretKey::combine(shares.as_slice())
+                    .map_err(|e| ThresholdError::ShareCombineFailed(e.to_string()))?;
+                let key_bytes = key.to_be_bytes().as_ref().to_vec();
+                Builder::new(Codec::Bls12381G1Priv)
+                    .with_comment(&self.mk.comment)
+                    .with_key_bytes(&key_bytes)
+                    .try_build()
+            }
+            Codec::Bls12381G2Priv => {
+                let mut shares = Vec::with_capacity(threshold_data.0.len());
+                threshold_data
+                    .0
+                    .iter()
+                    .try_for_each(|(id, share)| -> Result<(), Error> {
+                        let vsss = Share::with_identifier_and_value(*id, share.3.as_slice());
+                        shares.push(SecretKeyShare::<Bls12381G2Impl>(vsss));
+                        Ok(())
+                    })?;
+                let key = SecretKey::combine(shares.as_slice())
+                    .map_err(|e| ThresholdError::ShareCombineFailed(e.to_string()))?;
+                let key_bytes = key.to_be_bytes().as_ref().to_vec();
+                Builder::new(Codec::Bls12381G2Priv)
+                    .with_comment(&self.mk.comment)
+                    .with_key_bytes(&key_bytes)
+                    .try_build()
+            }
+            _ => Err(Error::UnsupportedAlgorithm(self.mk.codec.to_string())),
         }
     }
 }

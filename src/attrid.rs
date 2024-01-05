@@ -34,6 +34,8 @@ pub enum AttrId {
     Limit,
     /// the theshold key share identifier
     ShareIdentifier,
+    /// codec-specific threshold key data
+    ThresholdData,
 }
 
 impl AttrId {
@@ -58,6 +60,7 @@ impl AttrId {
             AttrId::Threshold => "threshold",
             AttrId::Limit => "limit",
             AttrId::ShareIdentifier => "share-identifier",
+            AttrId::ThresholdData => "threshold-data",
         }
     }
 }
@@ -86,6 +89,7 @@ impl TryFrom<u8> for AttrId {
             10 => Ok(AttrId::Threshold),
             11 => Ok(AttrId::Limit),
             12 => Ok(AttrId::ShareIdentifier),
+            13 => Ok(AttrId::ThresholdData),
             _ => Err(AttributesError::InvalidAttributeValue(c).into()),
         }
     }
@@ -134,6 +138,7 @@ impl TryFrom<&str> for AttrId {
             "threshold" => Ok(AttrId::Threshold),
             "limit" => Ok(AttrId::Limit),
             "share-identifier" => Ok(AttrId::ShareIdentifier),
+            "threshold-data" => Ok(AttrId::ThresholdData),
             _ => Err(AttributesError::InvalidAttributeName(s.to_string()).into()),
         }
     }

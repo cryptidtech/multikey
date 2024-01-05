@@ -64,6 +64,8 @@ pub trait ThresholdAttrView {
     fn limit(&self) -> Result<usize, Error>;
     /// get the share identifier for the multikey
     fn identifier(&self) -> Result<u8, Error>;
+    /// get the codec-specific threshold data
+    fn threshold_data(&self) -> Result<&[u8], Error>;
 }
 
 /// trait for returning the key data from a Multikey
@@ -132,6 +134,16 @@ pub trait SignView {
     fn sign(&self, msg: &[u8], combined: bool, scheme: Option<u8>) -> Result<Multisig, Error>;
 }
 
+/// trait for doing threshold operations on multikeys
+pub trait ThresholdView {
+    /// try to split the key into key shares given the threshold and limit
+    fn split(&self, threshold: usize, limit: usize) -> Result<Vec<Multikey>, Error>;
+    /// add a new share and return the Multikey with the share added
+    fn add_share(&self, share: &Multikey) -> Result<Multikey, Error>;
+    /// reconstruct the key from teh shares
+    fn combine(&self) -> Result<Multikey, Error>;
+}
+
 /// trait for verifying digial signatures using a multikey
 pub trait VerifyView {
     /// try to verify a Multisig using the Multikey
@@ -160,6 +172,8 @@ pub trait KeyViews {
     fn key_conv_view<'a>(&'a self) -> Result<Box<dyn KeyConvView + 'a>, Error>;
     /// Provide an interface to sign a message and return a Multisig
     fn sign_view<'a>(&'a self) -> Result<Box<dyn SignView + 'a>, Error>;
+    /// Provide an interface to threshold operations on the Mutlikey
+    fn threshold_view<'a>(&'a self) -> Result<Box<dyn ThresholdView + 'a>, Error>;
     /// Provide an interface to verify a Multisig and optional message
     fn verify_view<'a>(&'a self) -> Result<Box<dyn VerifyView + 'a>, Error>;
 }
