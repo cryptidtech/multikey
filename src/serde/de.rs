@@ -76,14 +76,45 @@ impl<'de> Deserialize<'de> for AttrId {
     where
         D: Deserializer<'de>,
     {
-        if deserializer.is_human_readable() {
-            let s: &str = Deserialize::deserialize(deserializer)?;
-            Ok(AttrId::try_from(s).map_err(|e| Error::custom(e.to_string()))?)
-        } else {
-            let id: Varbytes = Deserialize::deserialize(deserializer)?;
-            Ok(AttrId::try_from(id.to_inner().as_slice())
-                .map_err(|e| Error::custom(e.to_string()))?)
+        struct AttrVisitor;
+
+        impl<'de> Visitor<'de> for AttrVisitor {
+            type Value = AttrId;
+
+            fn expecting(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+                write!(fmt, "borrowed str, str, String, or u8")
+            }
+
+            fn visit_u8<E>(self, c: u8) -> Result<Self::Value, E>
+            where
+                E: Error,
+            {
+                Ok(AttrId::try_from(c).map_err(|e| Error::custom(e.to_string()))?)
+            }
+
+            fn visit_str<E>(self, s: &str) -> Result<Self::Value, E>
+            where
+                E: Error,
+            {
+                Ok(AttrId::try_from(s).map_err(|e| Error::custom(e.to_string()))?)
+            }
+
+            fn visit_borrowed_str<E>(self, s: &'de str) -> Result<Self::Value, E>
+            where
+                E: Error,
+            {
+                Ok(AttrId::try_from(s).map_err(|e| Error::custom(e.to_string()))?)
+            }
+
+            fn visit_string<E>(self, s: String) -> Result<Self::Value, E>
+            where
+                E: Error,
+            {
+                Ok(AttrId::try_from(s.as_str()).map_err(|e| Error::custom(e.to_string()))?)
+            }
         }
+
+        deserializer.deserialize_any(AttrVisitor)
     }
 }
 

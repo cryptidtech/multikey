@@ -30,7 +30,7 @@ impl ser::Serialize for AttrId {
         if serializer.is_human_readable() {
             serializer.serialize_str(self.as_str())
         } else {
-            Varbytes(self.clone().into()).serialize(serializer)
+            serializer.serialize_u8(self.code())
         }
     }
 }
