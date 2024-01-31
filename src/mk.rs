@@ -1,8 +1,8 @@
 use crate::{
     error::{AttributesError, CipherError, ConversionsError, KdfError},
-    key_views::{bcrypt, bls12381, chacha20, ed25519, secp256k1},
+    views::{bcrypt, bls12381, chacha20, ed25519, secp256k1},
     AttrId, AttrView, CipherAttrView, CipherView, Error, FingerprintView, KdfAttrView, KdfView,
-    KeyConvView, KeyDataView, KeyViews, SignView, ThresholdAttrView, ThresholdView, VerifyView,
+    KeyConvView, KeyDataView, SignView, ThresholdAttrView, ThresholdView, VerifyView, Views,
 };
 
 use multibase::Base;
@@ -150,7 +150,7 @@ impl fmt::Debug for Multikey {
     }
 }
 
-impl KeyViews for Multikey {
+impl Views for Multikey {
     /// Provide a read-only view of the basic attributes in the viewed Multikey
     fn attr_view<'a>(&'a self) -> Result<Box<dyn AttrView + 'a>, Error> {
         match self.codec {
@@ -853,7 +853,7 @@ impl Builder {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{cipher, kdf, key_views};
+    use crate::{cipher, kdf, views};
 
     #[test]
     fn test_ed25519_random() {
@@ -1057,12 +1057,12 @@ mod tests {
 
         let mk2 = {
             let kdfmk = kdf::Builder::new(Codec::BcryptPbkdf)
-                .with_random_salt(key_views::bcrypt::SALT_LENGTH, &mut rng)
+                .with_random_salt(views::bcrypt::SALT_LENGTH, &mut rng)
                 .with_rounds(10)
                 .try_build()
                 .unwrap();
             let ciphermk = cipher::Builder::new(Codec::Chacha20Poly1305)
-                .with_random_nonce(key_views::chacha20::NONCE_LENGTH, &mut rng)
+                .with_random_nonce(views::chacha20::NONCE_LENGTH, &mut rng)
                 .try_build()
                 .unwrap();
             // get the kdf view on the cipher multikey so we can generate a

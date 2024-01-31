@@ -1,7 +1,7 @@
 use crate::{
     error::{AttributesError, CipherError, KdfError},
     AttrId, AttrView, CipherAttrView, CipherView, Error, FingerprintView, KdfAttrView, KeyDataView,
-    KeyViews, Multikey,
+    Multikey, Views,
 };
 use multicodec::Codec;
 use multihash::{mh, Multihash};

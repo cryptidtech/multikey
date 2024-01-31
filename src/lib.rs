@@ -22,10 +22,10 @@ pub mod cipher;
 pub mod kdf;
 
 /// Key views
-pub mod key_views;
-pub use key_views::{
+pub mod views;
+pub use views::{
     AttrView, CipherAttrView, CipherView, FingerprintView, KdfAttrView, KdfView, KeyConvView,
-    KeyDataView, KeyViews, SignView, ThresholdAttrView, ThresholdView, VerifyView,
+    KeyDataView, SignView, ThresholdAttrView, ThresholdView, VerifyView, Views,
 };
 
 /// Multikey type and functions

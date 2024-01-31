@@ -147,7 +147,7 @@ pub trait VerifyView {
 }
 
 /// trait for getting the other views
-pub trait KeyViews {
+pub trait Views {
     /// Provide a read-only view of the basic attributes in the viewed Multikey
     fn attr_view<'a>(&'a self) -> Result<Box<dyn AttrView + 'a>, Error>;
     /// Provide a read-only view of the cipher attributes in the viewed Multikey

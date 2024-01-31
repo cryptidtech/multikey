@@ -4,7 +4,7 @@ mod ser;
 
 #[cfg(test)]
 mod tests {
-    use crate::{cipher, kdf, nonce, Builder, EncodedMultikey, KeyViews, Multikey};
+    use crate::{cipher, kdf, nonce, Builder, EncodedMultikey, Multikey, Views};
     use multibase::Base;
     use multicodec::Codec;
     use multihash::EncodedMultihash;

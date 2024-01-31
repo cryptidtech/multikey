@@ -88,7 +88,7 @@ impl Builder {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{cipher, KeyViews};
+    use crate::{cipher, Views};
 
     #[test]
     fn test_bcrypt() {

@@ -80,7 +80,7 @@ impl Builder {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{kdf, mk, KeyViews};
+    use crate::{kdf, mk, Views};
 
     #[test]
     fn test_chacha20() {

@@ -4,7 +4,7 @@ use crate::{
         VerifyError,
     },
     AttrId, AttrView, Builder, CipherAttrView, Error, FingerprintView, KdfAttrView, KeyConvView,
-    KeyDataView, KeyViews, Multikey, SignView, ThresholdAttrView, ThresholdView, VerifyView,
+    KeyDataView, Multikey, SignView, ThresholdAttrView, ThresholdView, VerifyView, Views,
 };
 use blsful::{
     inner_types::{G1Projective, G2Projective},

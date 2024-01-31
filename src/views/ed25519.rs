@@ -1,7 +1,7 @@
 use crate::{
     error::{AttributesError, CipherError, ConversionsError, KdfError, SignError, VerifyError},
     AttrId, AttrView, Builder, CipherAttrView, Error, FingerprintView, KdfAttrView, KeyConvView,
-    KeyDataView, KeyViews, Multikey, SignView, VerifyView,
+    KeyDataView, Multikey, SignView, VerifyView, Views,
 };
 use ed25519_dalek::{
     Signature, Signer, SigningKey, VerifyingKey, PUBLIC_KEY_LENGTH, SECRET_KEY_LENGTH,
