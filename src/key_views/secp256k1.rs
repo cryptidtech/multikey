@@ -102,16 +102,6 @@ impl<'a> CipherAttrView for View<'a> {
             .cloned()
     }
 
-    fn nonce_length(&self) -> Result<usize, Error> {
-        // try to look up the cipher nonce length in the multikey attributes
-        let nonce_length = self
-            .mk
-            .attributes
-            .get(&AttrId::CipherNonceLen)
-            .ok_or(CipherError::MissingNonceLen)?;
-        Ok(Varuint::<usize>::try_from(nonce_length.as_slice())?.to_inner())
-    }
-
     fn key_length(&self) -> Result<usize, Error> {
         // try to look up the cipher key length in the multikey attributes
         let key_length = self
@@ -141,16 +131,6 @@ impl<'a> KdfAttrView for View<'a> {
             .get(&AttrId::KdfSalt)
             .ok_or(KdfError::MissingSalt.into())
             .cloned()
-    }
-
-    fn salt_length(&self) -> Result<usize, Error> {
-        // try to look up the kdf salt length in the multikey attributes
-        let salt_length = self
-            .mk
-            .attributes
-            .get(&AttrId::KdfSaltLen)
-            .ok_or(KdfError::MissingSaltLen)?;
-        Ok(Varuint::<usize>::try_from(salt_length.as_slice())?.to_inner())
     }
 
     fn rounds(&self) -> Result<usize, Error> {

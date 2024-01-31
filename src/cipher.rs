@@ -1,6 +1,5 @@
 use crate::{mk::Attributes, AttrId, Error, Multikey};
 use multicodec::Codec;
-use multiutil::Varuint;
 use rand::{CryptoRng, RngCore};
 use zeroize::Zeroizing;
 
@@ -11,7 +10,6 @@ pub struct Builder {
     codec: Codec,
     key_length: Option<Zeroizing<Vec<u8>>>,
     nonce: Option<Zeroizing<Vec<u8>>>,
-    nonce_length: Option<Zeroizing<Vec<u8>>>,
 }
 
 impl Builder {
@@ -39,20 +37,13 @@ impl Builder {
         if let Some(v) = mk.attributes.get(&AttrId::CipherNonce) {
             self.nonce = Some(v.clone());
         }
-        // try to look up the nonce_length in the multikey attributes
-        if let Some(v) = mk.attributes.get(&AttrId::CipherNonceLen) {
-            self.nonce_length = Some(v.clone());
-        }
         Ok(self)
     }
 
     /// add in the nonce for the cipher
     pub fn with_nonce(mut self, nonce: &impl AsRef<[u8]>) -> Self {
         let n: Vec<u8> = nonce.as_ref().into();
-        let nlen = n.len();
         self.nonce = Some(n.into());
-        let nlen: Vec<u8> = Varuint(nlen).into();
-        self.nonce_length = Some(nlen.into());
         self
     }
 
@@ -78,10 +69,6 @@ impl Builder {
         if let Some(nonce) = self.nonce {
             attributes.insert(AttrId::CipherNonce, nonce);
         }
-        if let Some(nonce_length) = self.nonce_length {
-            attributes.insert(AttrId::CipherNonceLen, nonce_length);
-        }
-
         Ok(Multikey {
             codec,
             comment,
@@ -146,7 +133,6 @@ mod tests {
         let cattr = mk.cipher_attr_view().unwrap();
         assert_eq!(Codec::Chacha20Poly1305, cattr.cipher_codec().unwrap());
         assert!(cattr.nonce_bytes().is_ok());
-        assert_eq!(8, cattr.nonce_length().unwrap());
         assert_eq!(32, cattr.key_length().unwrap());
         let kattr = mk.kdf_attr_view().unwrap();
         assert_eq!(Codec::BcryptPbkdf, kattr.kdf_codec().unwrap());

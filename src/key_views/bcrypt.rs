@@ -33,12 +33,9 @@ impl<'a> KdfView for View<'a> {
         let kdf = self.kdf.ok_or_else(|| KdfError::MissingCodec)?;
 
         // get the salt data and rounds attribute
-        let (salt, salt_length, rounds) = {
+        let (salt, rounds) = {
             let kattr = kdf.kdf_attr_view()?;
-            let salt = kattr.salt_bytes()?;
-            let salt_length = kattr.salt_length()?;
-            let rounds = kattr.rounds()?;
-            (salt, salt_length, rounds)
+            (kattr.salt_bytes()?, kattr.rounds()?)
         };
 
         // get the key length from the viewed Multikey
@@ -63,7 +60,6 @@ impl<'a> KdfView for View<'a> {
         // prepare the attributes
         let kdf_codec: Vec<u8> = kdf.codec.into();
         let rounds: Vec<u8> = Varuint(rounds).into();
-        let salt_length: Vec<u8> = Varuint(salt_length).into();
 
         // create a new Multikey from the viewed Multikey (self) and store the
         // kdf parameters along with the derived key
@@ -72,8 +68,6 @@ impl<'a> KdfView for View<'a> {
         let _ = res.attributes.remove(&AttrId::KeyIsEncrypted);
         res.attributes.insert(AttrId::KdfCodec, kdf_codec.into());
         res.attributes.insert(AttrId::KdfSalt, salt.clone());
-        res.attributes
-            .insert(AttrId::KdfSaltLen, salt_length.into());
         res.attributes.insert(AttrId::KdfRounds, rounds.into());
         Ok(res)
     }
@@ -86,15 +80,16 @@ impl<'a> KdfAttrView for View<'a> {
 
     fn salt_bytes(&self) -> Result<Zeroizing<Vec<u8>>, Error> {
         // try to look up the salt in the multikey attributes
-        self.mk
+        let salt = self
+            .mk
             .attributes
             .get(&AttrId::KdfSalt)
-            .ok_or(KdfError::MissingSalt.into())
-            .cloned()
-    }
-
-    fn salt_length(&self) -> Result<usize, Error> {
-        Ok(SALT_LENGTH)
+            .ok_or_else(|| KdfError::MissingSalt)?;
+        if salt.len() != SALT_LENGTH {
+            Err(KdfError::InvalidSaltLen.into())
+        } else {
+            Ok(salt.clone())
+        }
     }
 
     fn rounds(&self) -> Result<usize, Error> {

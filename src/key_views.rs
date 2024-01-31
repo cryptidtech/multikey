@@ -38,8 +38,6 @@ pub trait CipherAttrView {
     fn cipher_codec(&self) -> Result<Codec, Error>;
     /// get the nonce bytes from the viewed multikey
     fn nonce_bytes(&self) -> Result<Zeroizing<Vec<u8>>, Error>;
-    /// get the nonce lgnth from the viewed multikey
-    fn nonce_length(&self) -> Result<usize, Error>;
     /// get the key length from the viewed multikey
     fn key_length(&self) -> Result<usize, Error>;
 }
@@ -50,8 +48,6 @@ pub trait KdfAttrView {
     fn kdf_codec(&self) -> Result<Codec, Error>;
     /// get the salt bytes from the viewed multikey
     fn salt_bytes(&self) -> Result<Zeroizing<Vec<u8>>, Error>;
-    /// get the salt length from the viewed multikey
-    fn salt_length(&self) -> Result<usize, Error>;
     /// get the number of rounds for the KDF function from the viewed multikey
     fn rounds(&self) -> Result<usize, Error>;
 }

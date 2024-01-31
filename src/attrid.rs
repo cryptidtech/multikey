@@ -16,14 +16,10 @@ pub enum AttrId {
     CipherCodec,
     /// the length of the cipher codec key in bytes, if encrypted
     CipherKeyLen,
-    /// the length of the cipher nonce, if enccrypted
-    CipherNonceLen,
     /// the nonce used to encrypt the key, if encrypted
     CipherNonce,
     /// the codec used to derive the encryption key, if encrypted
     KdfCodec,
-    /// the length of the kdf salt, if encrypted
-    KdfSaltLen,
     /// the salt used to derive the encryption key, if encrypted
     KdfSalt,
     /// the rounds used to derive the encryption key, if encrypted
@@ -51,10 +47,8 @@ impl AttrId {
             AttrId::KeyData => "key-data",
             AttrId::CipherCodec => "cipher-codec",
             AttrId::CipherKeyLen => "cipher-key-len",
-            AttrId::CipherNonceLen => "cipher-nonce-len",
             AttrId::CipherNonce => "cipher-nonce",
             AttrId::KdfCodec => "kdf-codec",
-            AttrId::KdfSaltLen => "kdf-salt-len",
             AttrId::KdfSalt => "kdf-salt",
             AttrId::KdfRounds => "kdf-rounds",
             AttrId::Threshold => "threshold",
@@ -80,16 +74,14 @@ impl TryFrom<u8> for AttrId {
             1 => Ok(AttrId::KeyData),
             2 => Ok(AttrId::CipherCodec),
             3 => Ok(AttrId::CipherKeyLen),
-            4 => Ok(AttrId::CipherNonceLen),
-            5 => Ok(AttrId::CipherNonce),
-            6 => Ok(AttrId::KdfCodec),
-            7 => Ok(AttrId::KdfSaltLen),
-            8 => Ok(AttrId::KdfSalt),
-            9 => Ok(AttrId::KdfRounds),
-            10 => Ok(AttrId::Threshold),
-            11 => Ok(AttrId::Limit),
-            12 => Ok(AttrId::ShareIdentifier),
-            13 => Ok(AttrId::ThresholdData),
+            4 => Ok(AttrId::CipherNonce),
+            5 => Ok(AttrId::KdfCodec),
+            6 => Ok(AttrId::KdfSalt),
+            7 => Ok(AttrId::KdfRounds),
+            8 => Ok(AttrId::Threshold),
+            9 => Ok(AttrId::Limit),
+            10 => Ok(AttrId::ShareIdentifier),
+            11 => Ok(AttrId::ThresholdData),
             _ => Err(AttributesError::InvalidAttributeValue(c).into()),
         }
     }
@@ -130,10 +122,8 @@ impl TryFrom<&str> for AttrId {
             "cipher-codec" => Ok(AttrId::CipherCodec),
             "cipher-key-len" => Ok(AttrId::CipherKeyLen),
             "cipher-nonce" => Ok(AttrId::CipherNonce),
-            "cipher-nonce-len" => Ok(AttrId::CipherNonceLen),
             "kdf-codec" => Ok(AttrId::KdfCodec),
             "kdf-salt" => Ok(AttrId::KdfSalt),
-            "kdf-salt-len" => Ok(AttrId::KdfSaltLen),
             "kdf-rounds" => Ok(AttrId::KdfRounds),
             "threshold" => Ok(AttrId::Threshold),
             "limit" => Ok(AttrId::Limit),

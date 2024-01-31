@@ -9,7 +9,6 @@ use zeroize::Zeroizing;
 pub struct Builder {
     codec: Codec,
     salt: Option<Zeroizing<Vec<u8>>>,
-    salt_length: Option<Zeroizing<Vec<u8>>>,
     rounds: Option<Zeroizing<Vec<u8>>>,
 }
 
@@ -34,10 +33,6 @@ impl Builder {
         if let Some(v) = mk.attributes.get(&AttrId::KdfSalt) {
             self.salt = Some(v.clone());
         }
-        // try to look up the salt length in the multikey attributes
-        if let Some(v) = mk.attributes.get(&AttrId::KdfSaltLen) {
-            self.salt_length = Some(v.clone());
-        }
         // try to look up the rounds in the multikey attributes
         if let Some(v) = mk.attributes.get(&AttrId::KdfRounds) {
             self.rounds = Some(v.clone());
@@ -48,10 +43,7 @@ impl Builder {
     /// add in the salt bytes for the kdf
     pub fn with_salt(mut self, salt: &impl AsRef<[u8]>) -> Self {
         let s: Vec<u8> = salt.as_ref().into();
-        let slen = s.len();
         self.salt = Some(s.into());
-        let slen: Vec<u8> = Varuint(slen).into();
-        self.salt_length = Some(slen.into());
         self
     }
 
@@ -80,9 +72,6 @@ impl Builder {
         let mut attributes = Attributes::new();
         if let Some(salt) = self.salt {
             attributes.insert(AttrId::KdfSalt, salt);
-        }
-        if let Some(salt_length) = self.salt_length {
-            attributes.insert(AttrId::KdfSaltLen, salt_length);
         }
         if let Some(rounds) = self.rounds {
             attributes.insert(AttrId::KdfRounds, rounds);
@@ -127,7 +116,6 @@ mod tests {
         let kattr = ciphermk.kdf_attr_view().unwrap();
         assert_eq!(Codec::BcryptPbkdf, kattr.kdf_codec().unwrap());
         assert_eq!(salt, kattr.salt_bytes().unwrap().to_vec());
-        assert_eq!(salt.len(), kattr.salt_length().unwrap());
         assert_eq!(10, kattr.rounds().unwrap());
 
         let kd = ciphermk.key_data_view().unwrap();

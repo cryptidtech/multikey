@@ -205,7 +205,7 @@ mod tests {
                 Token::BorrowedBytes(&[0x3a]), // Multikey sigil as varuint
                 Token::BorrowedBytes(&[0x80, 0x26]), // Ed25519Priv codec as varuint
                 Token::BorrowedBytes(&[8, 116, 101, 115, 116, 32, 107, 101, 121]), // "test key"
-                Token::Seq { len: Some(10) },
+                Token::Seq { len: Some(8) },
                 Token::Tuple { len: 2 },
                 Token::U8(0), // AttrId::KeyIsEncrypted
                 Token::BorrowedBytes(&[1, 1]),
@@ -227,30 +227,22 @@ mod tests {
                 Token::BorrowedBytes(&[1, 32]),
                 Token::TupleEnd,
                 Token::Tuple { len: 2 },
-                Token::U8(4), // AttrId::CipherNonceLen
-                Token::BorrowedBytes(&[1, 8]),
-                Token::TupleEnd,
-                Token::Tuple { len: 2 },
-                Token::U8(5), // AttrId::CipherNonceLen
+                Token::U8(4), // AttrId::CipherNonce
                 Token::BorrowedBytes(&[8, 113, 78, 90, 191, 15, 123, 234, 232]),
                 Token::TupleEnd,
                 Token::Tuple { len: 2 },
-                Token::U8(6), // AttrId::CipherNonceLen
+                Token::U8(5), // AttrId::KdfCodec
                 Token::BorrowedBytes(&[3, 141, 160, 3]),
                 Token::TupleEnd,
                 Token::Tuple { len: 2 },
-                Token::U8(7), // AttrId::CipherNonceLen
-                Token::BorrowedBytes(&[1, 32]),
-                Token::TupleEnd,
-                Token::Tuple { len: 2 },
-                Token::U8(8), // AttrId::CipherNonceLen
+                Token::U8(6), // AttrId::KdfSalt
                 Token::BorrowedBytes(&[
                     32, 98, 31, 32, 207, 218, 20, 11, 216, 191, 131, 168, 153, 22, 116, 40, 70, 41,
                     41, 164, 30, 155, 104, 168, 70, 123, 252, 36, 85, 233, 249, 132, 6,
                 ]),
                 Token::TupleEnd,
                 Token::Tuple { len: 2 },
-                Token::U8(9), // AttrId::CipherNonceLen
+                Token::U8(7), // AttrId::KdfRounds
                 Token::BorrowedBytes(&[1, 10]),
                 Token::TupleEnd,
                 Token::SeqEnd,
@@ -317,7 +309,7 @@ mod tests {
                 Token::BorrowedStr("comment"),
                 Token::BorrowedStr("test key"),
                 Token::BorrowedStr("attributes"),
-                Token::Seq { len: Some(10) },
+                Token::Seq { len: Some(8) },
                 Token::Tuple { len: 2 },
                 Token::BorrowedStr("key-is-encrypted"),
                 Token::BorrowedStr("f0101"),
@@ -335,20 +327,12 @@ mod tests {
                 Token::BorrowedStr("f0120"),
                 Token::TupleEnd,
                 Token::Tuple { len: 2 },
-                Token::BorrowedStr("cipher-nonce-len"),
-                Token::BorrowedStr("f0108"),
-                Token::TupleEnd,
-                Token::Tuple { len: 2 },
                 Token::BorrowedStr("cipher-nonce"),
                 Token::BorrowedStr("f08714e5abf0f7beae8"),
                 Token::TupleEnd,
                 Token::Tuple { len: 2 },
                 Token::BorrowedStr("kdf-codec"),
                 Token::BorrowedStr("f038da003"),
-                Token::TupleEnd,
-                Token::Tuple { len: 2 },
-                Token::BorrowedStr("kdf-salt-len"),
-                Token::BorrowedStr("f0120"),
                 Token::TupleEnd,
                 Token::Tuple { len: 2 },
                 Token::BorrowedStr("kdf-salt"),
@@ -412,7 +396,7 @@ mod tests {
         };
 
         let s = serde_json::to_string(&mk2).unwrap();
-        assert_eq!(s, "{\"codec\":\"ed25519-priv\",\"comment\":\"test key\",\"attributes\":[[\"key-is-encrypted\",\"f0101\"],[\"key-data\",\"f30b7a928df6568bf6cbecc2e1e9afeb835be69083e3fe25f5738ad16575435b4ab6a679e08696b1fc4637fbbad85d0529a\"],[\"cipher-codec\",\"f02a501\"],[\"cipher-key-len\",\"f0120\"],[\"cipher-nonce-len\",\"f0108\"],[\"cipher-nonce\",\"f08714e5abf0f7beae8\"],[\"kdf-codec\",\"f038da003\"],[\"kdf-salt-len\",\"f0120\"],[\"kdf-salt\",\"f20621f20cfda140bd8bf83a899167428462929a41e9b68a8467bfc2455e9f98406\"],[\"kdf-rounds\",\"f010a\"]]}".to_string());
+        assert_eq!(s, "{\"codec\":\"ed25519-priv\",\"comment\":\"test key\",\"attributes\":[[\"key-is-encrypted\",\"f0101\"],[\"key-data\",\"f30b7a928df6568bf6cbecc2e1e9afeb835be69083e3fe25f5738ad16575435b4ab6a679e08696b1fc4637fbbad85d0529a\"],[\"cipher-codec\",\"f02a501\"],[\"cipher-key-len\",\"f0120\"],[\"cipher-nonce\",\"f08714e5abf0f7beae8\"],[\"kdf-codec\",\"f038da003\"],[\"kdf-salt\",\"f20621f20cfda140bd8bf83a899167428462929a41e9b68a8467bfc2455e9f98406\"],[\"kdf-rounds\",\"f010a\"]]}".to_string());
 
         let mk3: Multikey = serde_json::from_str(&s).unwrap();
         assert_eq!(mk2, mk3);
@@ -423,16 +407,18 @@ mod tests {
         /*
         let bytes = hex::decode("4b79b6a7da7cdc9fe17e368450f08ae5a5f42347f4863f2ee23404f99aa62147")
             .unwrap();
-        let mk1 = Builder::new(Codec::Bls12381G1Priv)
+        let emk = Builder::new(Codec::Bls12381G1Priv)
             .with_comment("test key")
+            .with_base_encoding(Base::Base58Btc)
             .with_key_bytes(&bytes)
-            .try_build()
+            .try_build_encoded()
             .unwrap();
+        println!("{}", emk);
         */
 
         // build a secret key share multikey
         let emk = EncodedMultikey::try_from(
-            "z2ayVAH5br3HWpoRqtVkpnmpnmNkNAZjMBxzpQEGDLjFdnrbmL54RL8B6QtX5K44cMXjU4G1VaeKjW",
+            "zVDXiufT1nH3FWqLCAq9zvngU8nLUv1jvrkp8hGajy38caidL18ML9E5fYYfJkXQJ",
         )
         .unwrap();
         let mk1 = emk.to_inner();
@@ -475,7 +461,7 @@ mod tests {
         };
 
         let s = serde_json::to_string(&mk2).unwrap();
-        assert_eq!(s, "{\"codec\":\"bls12_381-g1-priv-share\",\"comment\":\"test key\",\"attributes\":[[\"key-is-encrypted\",\"f0101\"],[\"key-data\",\"f302729b798616b5db39bcfa0122fd8ed95a8d88495c17eee4bad84850e3fe0e8365daf123388dd33f49c1046dda1b51575\"],[\"cipher-codec\",\"f02a501\"],[\"cipher-key-len\",\"f0120\"],[\"cipher-nonce-len\",\"f0108\"],[\"cipher-nonce\",\"f08714e5abf0f7beae8\"],[\"kdf-codec\",\"f038da003\"],[\"kdf-salt-len\",\"f0120\"],[\"kdf-salt\",\"f20621f20cfda140bd8bf83a899167428462929a41e9b68a8467bfc2455e9f98406\"],[\"kdf-rounds\",\"f010a\"],[\"threshold\",\"f0103\"],[\"limit\",\"f0104\"],[\"share-identifier\",\"f0101\"]]}");
+        assert_eq!(s, "{\"codec\":\"bls12_381-g1-priv\",\"comment\":\"test key\",\"attributes\":[[\"key-is-encrypted\",\"f0101\"],[\"key-data\",\"f308298d80896ebda0577994e73041d2e3acd79967fd1516010a6cebedefa5c131e200bab3d620a17940f758191742f2deb\"],[\"cipher-codec\",\"f02a501\"],[\"cipher-key-len\",\"f0120\"],[\"cipher-nonce\",\"f08714e5abf0f7beae8\"],[\"kdf-codec\",\"f038da003\"],[\"kdf-salt\",\"f20621f20cfda140bd8bf83a899167428462929a41e9b68a8467bfc2455e9f98406\"],[\"kdf-rounds\",\"f010a\"]]}".to_string());
 
         let mk3: Multikey = serde_json::from_str(&s).unwrap();
         assert_eq!(mk2, mk3);

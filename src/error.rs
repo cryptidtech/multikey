@@ -137,8 +137,8 @@ pub enum CipherError {
     #[error("Missing cipher nonce")]
     MissingNonce,
     /// Missing nonce length error
-    #[error("Missing cipher nonce length")]
-    MissingNonceLen,
+    #[error("Invalid cipher nonce length")]
+    InvalidNonceLen,
     /// Invalid nonce error
     #[error("Invalid cipher nonce")]
     InvalidNonce,
@@ -175,9 +175,9 @@ pub enum KdfError {
     /// Missing salt error
     #[error("Missing KDF salt")]
     MissingSalt,
-    /// Missing salt length error
-    #[error("Missing KDF salt length")]
-    MissingSaltLen,
+    /// Invalid salt length error
+    #[error("Invalid KDF salt length")]
+    InvalidSaltLen,
     /// Missing rounds error
     #[error("Missing KDF rounds")]
     MissingRounds,

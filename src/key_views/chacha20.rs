@@ -10,6 +10,8 @@ use multiutil::Varuint;
 use sodiumoxide::crypto::aead::chacha20poly1305;
 use zeroize::Zeroizing;
 
+use super::bcrypt::SALT_LENGTH;
+
 /// the constants for ChaCha20
 pub const KEY_LENGTH: usize = chacha20poly1305::KEYBYTES;
 pub const NONCE_LENGTH: usize = chacha20poly1305::NONCEBYTES;
@@ -86,15 +88,16 @@ impl<'a> CipherAttrView for View<'a> {
 
     fn nonce_bytes(&self) -> Result<Zeroizing<Vec<u8>>, Error> {
         // try to look up the salt in the multikey attributes
-        self.mk
+        let nonce = self
+            .mk
             .attributes
             .get(&AttrId::CipherNonce)
-            .ok_or_else(|| CipherError::MissingNonce.into())
-            .cloned()
-    }
-
-    fn nonce_length(&self) -> Result<usize, Error> {
-        Ok(NONCE_LENGTH)
+            .ok_or_else(|| CipherError::MissingNonce)?;
+        if nonce.len() != NONCE_LENGTH {
+            Err(CipherError::InvalidNonceLen.into())
+        } else {
+            Ok(nonce.clone())
+        }
     }
 
     fn key_length(&self) -> Result<usize, Error> {
@@ -115,21 +118,16 @@ impl<'a> KdfAttrView for View<'a> {
 
     fn salt_bytes(&self) -> Result<Zeroizing<Vec<u8>>, Error> {
         // try to look up the salt in the multikey attributes
-        self.mk
-            .attributes
-            .get(&AttrId::KdfSalt)
-            .ok_or_else(|| KdfError::MissingSalt.into())
-            .cloned()
-    }
-
-    fn salt_length(&self) -> Result<usize, Error> {
-        // try to look up the kdf salt length in the multikey attributes
-        let salt_length = self
+        let salt = self
             .mk
             .attributes
-            .get(&AttrId::KdfSaltLen)
-            .ok_or_else(|| KdfError::MissingSaltLen)?;
-        Ok(Varuint::<usize>::try_from(salt_length.as_slice())?.to_inner())
+            .get(&AttrId::KdfSalt)
+            .ok_or_else(|| KdfError::MissingSalt)?;
+        if salt.len() != SALT_LENGTH {
+            Err(KdfError::InvalidSaltLen.into())
+        } else {
+            Ok(salt.clone())
+        }
     }
 
     fn rounds(&self) -> Result<usize, Error> {
@@ -155,11 +153,7 @@ impl<'a> CipherView for View<'a> {
         // get the nonce data from the passed-in Multikey
         let nonce = {
             let cattr = cipher.cipher_attr_view()?;
-            let nonce = cattr.nonce_bytes()?;
-            if nonce.len() != self.nonce_length()? {
-                return Err(CipherError::InvalidNonce.into());
-            }
-            nonce
+            cattr.nonce_bytes()?
         };
 
         // create the chacha nonce from the data
@@ -199,10 +193,8 @@ impl<'a> CipherView for View<'a> {
         let _ = res.attributes.remove(&AttrId::CipherCodec);
         let _ = res.attributes.remove(&AttrId::CipherKeyLen);
         let _ = res.attributes.remove(&AttrId::CipherNonce);
-        let _ = res.attributes.remove(&AttrId::CipherNonceLen);
         let _ = res.attributes.remove(&AttrId::KdfCodec);
         let _ = res.attributes.remove(&AttrId::KdfSalt);
-        let _ = res.attributes.remove(&AttrId::KdfSaltLen);
         let _ = res.attributes.remove(&AttrId::KdfRounds);
         Ok(res)
     }
@@ -220,11 +212,7 @@ impl<'a> CipherView for View<'a> {
         // get the nonce data from the passed-in Multikey
         let nonce = {
             let cattr = cipher.cipher_attr_view()?;
-            let nonce = cattr.nonce_bytes()?;
-            if nonce.len() != self.nonce_length()? {
-                return Err(CipherError::InvalidNonce.into());
-            }
-            nonce
+            cattr.nonce_bytes()?
         };
 
         let n = chacha20poly1305::Nonce::from_slice(nonce.as_slice())
@@ -257,14 +245,12 @@ impl<'a> CipherView for View<'a> {
         let cattr = cipher.cipher_attr_view()?;
         let cipher_codec: Vec<u8> = cipher.codec.into();
         let key_length: Vec<u8> = Varuint(cattr.key_length()?).into();
-        let nonce_length: Vec<u8> = Varuint(cattr.nonce_length()?).into();
         let is_encrypted: Vec<u8> = Varuint(true).into();
 
         // get a view on the kdf attributes
         let kattr = cipher.kdf_attr_view()?;
         let kdf_codec: Vec<u8> = kattr.kdf_codec()?.into();
         let salt = kattr.salt_bytes()?;
-        let salt_length: Vec<u8> = Varuint(kattr.salt_length()?).into();
         let rounds: Vec<u8> = Varuint(kattr.rounds()?).into();
 
         // create a copy of the viewed Multikey (self) and add in the encrypted
@@ -279,12 +265,8 @@ impl<'a> CipherView for View<'a> {
         res.attributes
             .insert(AttrId::CipherKeyLen, key_length.into());
         res.attributes.insert(AttrId::CipherNonce, nonce.clone());
-        res.attributes
-            .insert(AttrId::CipherNonceLen, nonce_length.into());
         res.attributes.insert(AttrId::KdfCodec, kdf_codec.into());
         res.attributes.insert(AttrId::KdfSalt, salt.clone());
-        res.attributes
-            .insert(AttrId::KdfSaltLen, salt_length.into());
         res.attributes.insert(AttrId::KdfRounds, rounds.into());
         Ok(res)
     }
