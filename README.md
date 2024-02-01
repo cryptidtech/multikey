@@ -3,7 +3,7 @@
 [![](https://img.shields.io/badge/made%20by-Cryptid%20Technologies-gold.svg?style=flat-square)][0]
 [![](https://img.shields.io/badge/project-multiformats-blue.svg?style=flat-square)][1]
 
-A Rust implementation of the [multiformats][0] [multikey specification][1].
+A Rust implementation of the [multiformats][1] [multikey specification][2].
 
 ## Current Status
 
