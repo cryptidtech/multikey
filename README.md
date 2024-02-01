@@ -10,10 +10,14 @@ A Rust implementation of the [multiformats][1] [multikey specification][2].
 This implementation of the multikey specification supports both public key and
 secret key cryptography keys. For public key cryptography, it supports public
 and secret keys for EdDSA, and ECDSA using the Nist P256, P384, and P521
-curves. For secret key cryptography it supports ChaCha-256 keys.
+curves. For secret key cryptography it supports ChaCha-256 keys and encryption 
+and decryption using ChaCha20-Poly1305.
 
 This implementation also supports encrypting keys—usually secret keys—using the
 ChaCha20-Poly1305 AEAD with keys derived using Bcrypt KDF.
+
+This implementation also supports BLS12381 G1/G2 public key cryptography with 
+key splitting and combining as well as threshold signing and verifying.
 
 For the technical details of the design of multikey, please refer to the
 [specification][2].
