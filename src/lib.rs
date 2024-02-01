@@ -24,8 +24,8 @@ pub mod kdf;
 /// Key views
 pub mod views;
 pub use views::{
-    AttrView, CipherAttrView, CipherView, FingerprintView, KdfAttrView, KdfView, KeyConvView,
-    KeyDataView, SignView, ThresholdAttrView, ThresholdView, VerifyView, Views,
+    AttrView, CipherAttrView, CipherView, ConvView, DataView, FingerprintView, KdfAttrView,
+    KdfView, SignView, ThresholdAttrView, ThresholdView, VerifyView, Views,
 };
 
 /// Multikey type and functions

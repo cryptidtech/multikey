@@ -118,7 +118,7 @@ mod tests {
         assert_eq!(salt, kattr.salt_bytes().unwrap().to_vec());
         assert_eq!(10, kattr.rounds().unwrap());
 
-        let kd = ciphermk.key_data_view().unwrap();
+        let kd = ciphermk.data_view().unwrap();
         assert_eq!(
             vec![
                 119, 109, 13, 221, 140, 26, 88, 179, 135, 17, 119, 25, 176, 99, 5, 2, 203, 25, 82,

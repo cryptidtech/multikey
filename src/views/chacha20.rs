@@ -1,6 +1,6 @@
 use crate::{
     error::{AttributesError, CipherError, KdfError},
-    AttrId, AttrView, CipherAttrView, CipherView, Error, FingerprintView, KdfAttrView, KeyDataView,
+    AttrId, AttrView, CipherAttrView, CipherView, DataView, Error, FingerprintView, KdfAttrView,
     Multikey, Views,
 };
 use multicodec::Codec;
@@ -61,7 +61,7 @@ impl<'a> AttrView for View<'a> {
     }
 }
 
-impl<'a> KeyDataView for View<'a> {
+impl<'a> DataView for View<'a> {
     /// return the ChaCha20 key bytes
     fn key_bytes(&self) -> Result<Zeroizing<Vec<u8>>, Error> {
         let key = self
@@ -162,7 +162,7 @@ impl<'a> CipherView for View<'a> {
 
         // get the key data from the passed-in Multikey
         let key = {
-            let kd = cipher.key_data_view()?;
+            let kd = cipher.data_view()?;
             let key = kd.secret_bytes()?;
             if key.len() != self.key_length()? {
                 return Err(CipherError::InvalidKey.into());
@@ -176,7 +176,7 @@ impl<'a> CipherView for View<'a> {
 
         // get the encrypted key bytes from the viewed Multikey (self)
         let msg = {
-            let attr = self.mk.key_data_view()?;
+            let attr = self.mk.data_view()?;
             let msg = attr.key_bytes()?;
             msg
         };
@@ -220,7 +220,7 @@ impl<'a> CipherView for View<'a> {
 
         // get the key data from the passed-in Multikey
         let key = {
-            let kd = cipher.key_data_view()?;
+            let kd = cipher.data_view()?;
             let key = kd.secret_bytes()?;
             if key.len() != self.key_length()? {
                 return Err(CipherError::InvalidKey.into());
@@ -233,7 +233,7 @@ impl<'a> CipherView for View<'a> {
 
         // get the secret bytes from the viewed Multikey
         let msg = {
-            let kd = self.mk.key_data_view()?;
+            let kd = self.mk.data_view()?;
             let msg = kd.secret_bytes()?;
             msg
         };
@@ -276,7 +276,7 @@ impl<'a> FingerprintView for View<'a> {
     fn fingerprint(&self, codec: Codec) -> Result<Multihash, Error> {
         // get the key bytes
         let bytes = {
-            let kd = self.mk.key_data_view()?;
+            let kd = self.mk.data_view()?;
             let bytes = kd.key_bytes()?;
             bytes
         };

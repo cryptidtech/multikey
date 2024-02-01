@@ -1,8 +1,8 @@
 use crate::{
     error::{AttributesError, CipherError, ConversionsError, KdfError},
     views::{bcrypt, bls12381, chacha20, ed25519, secp256k1},
-    AttrId, AttrView, CipherAttrView, CipherView, Error, FingerprintView, KdfAttrView, KdfView,
-    KeyConvView, KeyDataView, SignView, ThresholdAttrView, ThresholdView, VerifyView, Views,
+    AttrId, AttrView, CipherAttrView, CipherView, ConvView, DataView, Error, FingerprintView,
+    KdfAttrView, KdfView, SignView, ThresholdAttrView, ThresholdView, VerifyView, Views,
 };
 
 use multibase::Base;
@@ -184,6 +184,26 @@ impl Views for Multikey {
         }
     }
 
+    /// Provide a read-only view to key data in the viewed Multikey
+    fn data_view<'a>(&'a self) -> Result<Box<dyn DataView + 'a>, Error> {
+        match self.codec {
+            Codec::Bls12381G1PrivShare
+            | Codec::Bls12381G1Priv
+            | Codec::Bls12381G1Pub
+            | Codec::Bls12381G1PubShare
+            | Codec::Bls12381G2PrivShare
+            | Codec::Bls12381G2Priv
+            | Codec::Bls12381G2Pub
+            | Codec::Bls12381G2PubShare => Ok(Box::new(bls12381::View::try_from(self)?)),
+            Codec::Ed25519Pub | Codec::Ed25519Priv => Ok(Box::new(ed25519::View::try_from(self)?)),
+            Codec::Secp256K1Pub | Codec::Secp256K1Priv => {
+                Ok(Box::new(secp256k1::View::try_from(self)?))
+            }
+            Codec::Chacha20Poly1305 => Ok(Box::new(chacha20::View::try_from(self)?)),
+            _ => Err(ConversionsError::UnsupportedCodec(self.codec).into()),
+        }
+    }
+
     /// Provide a read-only view of the kdf attributes in the viewed Multikey
     fn kdf_attr_view<'a>(&'a self) -> Result<Box<dyn KdfAttrView + 'a>, Error> {
         let codec = if let Some(bytes) = self.attributes.get(&AttrId::KdfCodec) {
@@ -212,8 +232,16 @@ impl Views for Multikey {
         }
     }
 
-    /// Provide a read-only view to key data in the viewed Multikey
-    fn key_data_view<'a>(&'a self) -> Result<Box<dyn KeyDataView + 'a>, Error> {
+    /// Provide an interface to do encryption/decryption of the viewed Multikey
+    fn cipher_view<'a>(&'a self, cipher: &'a Multikey) -> Result<Box<dyn CipherView + 'a>, Error> {
+        match cipher.codec {
+            Codec::Chacha20Poly1305 => Ok(Box::new(chacha20::View::new(self, cipher))),
+            _ => Err(CipherError::UnsupportedCodec(self.codec).into()),
+        }
+    }
+
+    /// Provide an interface to do key conversions from the viewe Multikey
+    fn conv_view<'a>(&'a self) -> Result<Box<dyn ConvView + 'a>, Error> {
         match self.codec {
             Codec::Bls12381G1PrivShare
             | Codec::Bls12381G1Priv
@@ -227,16 +255,7 @@ impl Views for Multikey {
             Codec::Secp256K1Pub | Codec::Secp256K1Priv => {
                 Ok(Box::new(secp256k1::View::try_from(self)?))
             }
-            Codec::Chacha20Poly1305 => Ok(Box::new(chacha20::View::try_from(self)?)),
             _ => Err(ConversionsError::UnsupportedCodec(self.codec).into()),
-        }
-    }
-
-    /// Provide an interface to do encryption/decryption of the viewed Multikey
-    fn cipher_view<'a>(&'a self, cipher: &'a Multikey) -> Result<Box<dyn CipherView + 'a>, Error> {
-        match cipher.codec {
-            Codec::Chacha20Poly1305 => Ok(Box::new(chacha20::View::new(self, cipher))),
-            _ => Err(CipherError::UnsupportedCodec(self.codec).into()),
         }
     }
 
@@ -265,25 +284,6 @@ impl Views for Multikey {
         match kdf.codec {
             Codec::BcryptPbkdf => Ok(Box::new(bcrypt::View::new(self, kdf))),
             _ => Err(KdfError::UnsupportedCodec(self.codec).into()),
-        }
-    }
-
-    /// Provide an interface to do key conversions from the viewe Multikey
-    fn key_conv_view<'a>(&'a self) -> Result<Box<dyn KeyConvView + 'a>, Error> {
-        match self.codec {
-            Codec::Bls12381G1PrivShare
-            | Codec::Bls12381G1Priv
-            | Codec::Bls12381G1Pub
-            | Codec::Bls12381G1PubShare
-            | Codec::Bls12381G2PrivShare
-            | Codec::Bls12381G2Priv
-            | Codec::Bls12381G2Pub
-            | Codec::Bls12381G2PubShare => Ok(Box::new(bls12381::View::try_from(self)?)),
-            Codec::Ed25519Pub | Codec::Ed25519Priv => Ok(Box::new(ed25519::View::try_from(self)?)),
-            Codec::Secp256K1Pub | Codec::Secp256K1Priv => {
-                Ok(Box::new(secp256k1::View::try_from(self)?))
-            }
-            _ => Err(ConversionsError::UnsupportedCodec(self.codec).into()),
         }
     }
 
@@ -941,7 +941,7 @@ mod tests {
             .with_comment("test key")
             .try_build()
             .unwrap();
-        let conv = mk.key_conv_view().unwrap();
+        let conv = mk.conv_view().unwrap();
         let pk = conv.to_public_key().unwrap();
         let ssh_key = conv.to_ssh_public_key().unwrap();
         let mk2 = Builder::new_from_ssh_public_key(&ssh_key)
@@ -959,7 +959,7 @@ mod tests {
             .with_comment("test key")
             .try_build()
             .unwrap();
-        let conv = mk.key_conv_view().unwrap();
+        let conv = mk.conv_view().unwrap();
         let ssh_key = conv.to_ssh_private_key().unwrap();
         let mk2 = Builder::new_from_ssh_private_key(&ssh_key)
             .unwrap()
@@ -976,7 +976,7 @@ mod tests {
             .with_comment("test key")
             .try_build()
             .unwrap();
-        let conv = mk.key_conv_view().unwrap();
+        let conv = mk.conv_view().unwrap();
         let pk = conv.to_public_key().unwrap();
         let ssh_key = conv.to_ssh_public_key().unwrap();
         let mk2 = Builder::new_from_ssh_public_key(&ssh_key)
@@ -994,7 +994,7 @@ mod tests {
             .with_comment("test key")
             .try_build()
             .unwrap();
-        let conv = mk.key_conv_view().unwrap();
+        let conv = mk.conv_view().unwrap();
         let ssh_key = conv.to_ssh_private_key().unwrap();
         let mk2 = Builder::new_from_ssh_private_key(&ssh_key)
             .unwrap()
@@ -1011,7 +1011,7 @@ mod tests {
             .with_comment("test key")
             .try_build()
             .unwrap();
-        let conv = mk.key_conv_view().unwrap();
+        let conv = mk.conv_view().unwrap();
         let pk = conv.to_public_key().unwrap();
         let ssh_key = conv.to_ssh_public_key().unwrap();
         let mk2 = Builder::new_from_ssh_public_key(&ssh_key)
@@ -1029,7 +1029,7 @@ mod tests {
             .with_comment("test key")
             .try_build()
             .unwrap();
-        let conv = mk.key_conv_view().unwrap();
+        let conv = mk.conv_view().unwrap();
         let ssh_key = conv.to_ssh_private_key().unwrap();
         let mk2 = Builder::new_from_ssh_private_key(&ssh_key)
             .unwrap()
@@ -1051,7 +1051,7 @@ mod tests {
         assert!(!attr.is_encrypted());
         assert!(!attr.is_public_key());
         assert!(attr.is_secret_key());
-        let kd = mk1.key_data_view().unwrap();
+        let kd = mk1.data_view().unwrap();
         assert!(kd.key_bytes().is_ok());
         assert!(kd.secret_bytes().is_ok());
 
@@ -1085,7 +1085,7 @@ mod tests {
         assert_eq!(true, attr.is_encrypted());
         assert_eq!(false, attr.is_public_key());
         assert_eq!(true, attr.is_secret_key());
-        let kd = mk2.key_data_view().unwrap();
+        let kd = mk2.data_view().unwrap();
         assert!(kd.key_bytes().is_ok());
         assert!(kd.secret_bytes().is_err()); // encrypted key
 
@@ -1117,7 +1117,7 @@ mod tests {
         assert_eq!(false, attr.is_encrypted());
         assert_eq!(false, attr.is_public_key());
         assert_eq!(true, attr.is_secret_key());
-        let kd = mk3.key_data_view().unwrap();
+        let kd = mk3.data_view().unwrap();
         assert!(kd.key_bytes().is_ok());
         assert!(kd.secret_bytes().is_ok());
 
@@ -1138,7 +1138,7 @@ mod tests {
         assert!(!attr.is_encrypted());
         assert!(!attr.is_public_key());
         assert!(attr.is_secret_key());
-        let kd = mk.key_data_view().unwrap();
+        let kd = mk.data_view().unwrap();
         assert!(kd.key_bytes().is_ok());
         assert!(kd.secret_bytes().is_ok());
 
@@ -1165,7 +1165,7 @@ mod tests {
         assert!(!attr.is_encrypted());
         assert!(!attr.is_public_key());
         assert!(attr.is_secret_key());
-        let kd = mk.key_data_view().unwrap();
+        let kd = mk.data_view().unwrap();
         assert!(kd.key_bytes().is_ok());
         assert!(kd.secret_bytes().is_ok());
 
@@ -1195,7 +1195,7 @@ mod tests {
         assert!(!attr.is_encrypted());
         assert!(!attr.is_public_key());
         assert!(attr.is_secret_key());
-        let kd = mk.key_data_view().unwrap();
+        let kd = mk.data_view().unwrap();
         assert!(kd.key_bytes().is_ok());
         assert!(kd.secret_bytes().is_ok());
 
@@ -1222,7 +1222,7 @@ mod tests {
         assert!(!attr.is_encrypted());
         assert!(!attr.is_public_key());
         assert!(attr.is_secret_key());
-        let kd = mk.key_data_view().unwrap();
+        let kd = mk.data_view().unwrap();
         assert!(kd.key_bytes().is_ok());
         assert!(kd.secret_bytes().is_ok());
 
@@ -1252,7 +1252,7 @@ mod tests {
         assert!(!attr.is_encrypted());
         assert!(!attr.is_public_key());
         assert!(attr.is_secret_key());
-        let kd = mk.key_data_view().unwrap();
+        let kd = mk.data_view().unwrap();
         assert!(kd.key_bytes().is_ok());
         assert!(kd.secret_bytes().is_ok());
 
@@ -1279,7 +1279,7 @@ mod tests {
         assert!(!attr.is_encrypted());
         assert!(!attr.is_public_key());
         assert!(attr.is_secret_key());
-        let kd = mk.key_data_view().unwrap();
+        let kd = mk.data_view().unwrap();
         assert!(kd.key_bytes().is_ok());
         assert!(kd.secret_bytes().is_ok());
 
@@ -1339,12 +1339,12 @@ mod tests {
             .with_comment("test key")
             .try_build()
             .unwrap();
-        let cv = sk1.key_conv_view().unwrap();
+        let cv = sk1.conv_view().unwrap();
         let public_key = cv.to_ssh_public_key().unwrap();
         let private_key = cv.to_ssh_private_key().unwrap();
 
         let pk1 = cv.to_public_key().unwrap();
-        let cv = pk1.key_conv_view().unwrap();
+        let cv = pk1.conv_view().unwrap();
         assert_eq!(public_key, cv.to_ssh_public_key().unwrap());
 
         let sk2 = Builder::new_from_ssh_private_key(&private_key)
@@ -1367,12 +1367,12 @@ mod tests {
             .with_comment("test key")
             .try_build()
             .unwrap();
-        let cv = sk1.key_conv_view().unwrap();
+        let cv = sk1.conv_view().unwrap();
         let public_key = cv.to_ssh_public_key().unwrap();
         let private_key = cv.to_ssh_private_key().unwrap();
 
         let pk1 = cv.to_public_key().unwrap();
-        let cv = pk1.key_conv_view().unwrap();
+        let cv = pk1.conv_view().unwrap();
         assert_eq!(public_key, cv.to_ssh_public_key().unwrap());
 
         let sk2 = Builder::new_from_ssh_private_key(&private_key)
@@ -1395,12 +1395,12 @@ mod tests {
             .with_comment("test key")
             .try_build()
             .unwrap();
-        let cv = sk1.key_conv_view().unwrap();
+        let cv = sk1.conv_view().unwrap();
         let public_key = cv.to_ssh_public_key().unwrap();
         let private_key = cv.to_ssh_private_key().unwrap();
 
         let pk1 = cv.to_public_key().unwrap();
-        let cv = pk1.key_conv_view().unwrap();
+        let cv = pk1.conv_view().unwrap();
         assert_eq!(public_key, cv.to_ssh_public_key().unwrap());
 
         let sk2 = Builder::new_from_ssh_private_key(&private_key)
@@ -1427,12 +1427,12 @@ mod tests {
         let sk1 = { tv.split(3, 4).unwrap()[0].clone() };
 
         assert_eq!(Codec::Bls12381G1PrivShare, sk1.codec);
-        let cv = sk1.key_conv_view().unwrap();
+        let cv = sk1.conv_view().unwrap();
         let public_key = cv.to_ssh_public_key().unwrap();
         let private_key = cv.to_ssh_private_key().unwrap();
 
         let pk1 = cv.to_public_key().unwrap();
-        let cv = pk1.key_conv_view().unwrap();
+        let cv = pk1.conv_view().unwrap();
         assert_eq!(public_key, cv.to_ssh_public_key().unwrap());
 
         let sk2 = Builder::new_from_ssh_private_key(&private_key)
@@ -1467,7 +1467,7 @@ mod tests {
         assert_eq!(false, attr.is_encrypted());
         assert_eq!(true, attr.is_public_key());
         assert_eq!(false, attr.is_secret_key());
-        let kd = mk.key_data_view().unwrap();
+        let kd = mk.data_view().unwrap();
         assert!(kd.key_bytes().is_ok());
         assert!(kd.secret_bytes().is_err()); // public key
     }
@@ -1491,7 +1491,7 @@ mod tests {
         assert_eq!(false, attr.is_encrypted());
         assert_eq!(false, attr.is_public_key());
         assert_eq!(true, attr.is_secret_key());
-        let kd = mk.key_data_view().unwrap();
+        let kd = mk.data_view().unwrap();
         assert!(kd.key_bytes().is_ok());
         assert!(kd.secret_bytes().is_ok());
     }
@@ -1507,7 +1507,7 @@ mod tests {
         assert_eq!(false, attr.is_encrypted());
         assert_eq!(true, attr.is_public_key());
         assert_eq!(false, attr.is_secret_key());
-        let kd = mk.key_data_view().unwrap();
+        let kd = mk.data_view().unwrap();
         assert!(kd.key_bytes().is_ok());
         assert!(kd.secret_bytes().is_err()); // public key
     }
@@ -1524,7 +1524,7 @@ mod tests {
         assert_eq!(false, attr.is_encrypted());
         assert_eq!(false, attr.is_public_key());
         assert_eq!(true, attr.is_secret_key());
-        let kd = mk.key_data_view().unwrap();
+        let kd = mk.data_view().unwrap();
         assert!(kd.key_bytes().is_ok());
         assert!(kd.secret_bytes().is_ok());
     }
@@ -1539,7 +1539,7 @@ mod tests {
         assert_eq!(false, attr.is_encrypted());
         assert_eq!(true, attr.is_public_key());
         assert_eq!(false, attr.is_secret_key());
-        let kd = mk.key_data_view().unwrap();
+        let kd = mk.data_view().unwrap();
         assert!(kd.key_bytes().is_ok());
         assert!(kd.secret_bytes().is_err()); // public key
     }
@@ -1554,7 +1554,7 @@ mod tests {
         assert_eq!(false, attr.is_encrypted());
         assert_eq!(false, attr.is_public_key());
         assert_eq!(true, attr.is_secret_key());
-        let kd = mk.key_data_view().unwrap();
+        let kd = mk.data_view().unwrap();
         assert!(kd.key_bytes().is_ok());
         assert!(kd.secret_bytes().is_ok());
     }

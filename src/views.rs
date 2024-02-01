@@ -42,6 +42,16 @@ pub trait CipherAttrView {
     fn key_length(&self) -> Result<usize, Error>;
 }
 
+/// trait for returning the key data from a Multikey
+pub trait DataView {
+    /// get the key bytes from the viewed Multikey. this is codec specific.
+    fn key_bytes(&self) -> Result<Zeroizing<Vec<u8>>, Error>;
+    /// get the bytes that constitutes the secret. this is codec specific and
+    /// must return all of the bytes that should be encrypted to protect the
+    /// secret part of the key
+    fn secret_bytes(&self) -> Result<Zeroizing<Vec<u8>>, Error>;
+}
+
 /// trait for viewing the kdf attributes in a Multikey
 pub trait KdfAttrView {
     /// get the kdf codec from the viewed multikey
@@ -64,16 +74,6 @@ pub trait ThresholdAttrView {
     fn threshold_data(&self) -> Result<&[u8], Error>;
 }
 
-/// trait for returning the key data from a Multikey
-pub trait KeyDataView {
-    /// get the key bytes from the viewed Multikey. this is codec specific.
-    fn key_bytes(&self) -> Result<Zeroizing<Vec<u8>>, Error>;
-    /// get the bytes that constitutes the secret. this is codec specific and
-    /// must return all of the bytes that should be encrypted to protect the
-    /// secret part of the key
-    fn secret_bytes(&self) -> Result<Zeroizing<Vec<u8>>, Error>;
-}
-
 ///
 /// The following key operations views are functions that generate new
 /// Multikeys, Multihashes, or Multisigs from the viewed Multikey (self)
@@ -94,6 +94,17 @@ pub trait CipherView {
     fn encrypt(&self) -> Result<Multikey, Error>;
 }
 
+/// trait for converting a Multikey in various ways
+pub trait ConvView {
+    /// try to create a Multikey from this view that is the public key part of
+    /// a key pair. this always fails for symmetric encryption codecs.
+    fn to_public_key(&self) -> Result<Multikey, Error>;
+    /// try to convert a Multikey to an ssh_key::PublicKey
+    fn to_ssh_public_key(&self) -> Result<ssh_key::PublicKey, Error>;
+    /// try to convert a Multikey to an ssh_key::PrivateKey
+    fn to_ssh_private_key(&self) -> Result<ssh_key::PrivateKey, Error>;
+}
+
 /// trait for fingerpringing a Multikey
 pub trait FingerprintView {
     /// get the fingerprint of the viewed Multikey using the passed-in hashing
@@ -111,17 +122,6 @@ pub trait KdfView {
     /// derived key in the Data attribute. also, the KdfCodec, Salt, and
     /// Rounds attributes are set to the values from the passed-in Multikey.
     fn derive_key(&self, passphrase: &[u8]) -> Result<Multikey, Error>;
-}
-
-/// trait for converting a Multikey in various ways
-pub trait KeyConvView {
-    /// try to create a Multikey from this view that is the public key part of
-    /// a key pair. this always fails for symmetric encryption codecs.
-    fn to_public_key(&self) -> Result<Multikey, Error>;
-    /// try to convert a Multikey to an ssh_key::PublicKey
-    fn to_ssh_public_key(&self) -> Result<ssh_key::PublicKey, Error>;
-    /// try to convert a Multikey to an ssh_key::PrivateKey
-    fn to_ssh_private_key(&self) -> Result<ssh_key::PrivateKey, Error>;
 }
 
 /// trait for digially signing data using a multikey
@@ -152,20 +152,20 @@ pub trait Views {
     fn attr_view<'a>(&'a self) -> Result<Box<dyn AttrView + 'a>, Error>;
     /// Provide a read-only view of the cipher attributes in the viewed Multikey
     fn cipher_attr_view<'a>(&'a self) -> Result<Box<dyn CipherAttrView + 'a>, Error>;
+    /// Provide a read-only view to key data in the viewed Multikey
+    fn data_view<'a>(&'a self) -> Result<Box<dyn DataView + 'a>, Error>;
     /// Provide a read-only view of the kdf attributes in the viewed Multikey
     fn kdf_attr_view<'a>(&'a self) -> Result<Box<dyn KdfAttrView + 'a>, Error>;
     /// Provide a read-only view of the threshold attributes in the viewed Multikey
     fn threshold_attr_view<'a>(&'a self) -> Result<Box<dyn ThresholdAttrView + 'a>, Error>;
-    /// Provide a read-only view to key data in the viewed Multikey
-    fn key_data_view<'a>(&'a self) -> Result<Box<dyn KeyDataView + 'a>, Error>;
     /// Provide an interface to do encryption/decryption of the viewed Multikey
     fn cipher_view<'a>(&'a self, cipher: &'a Multikey) -> Result<Box<dyn CipherView + 'a>, Error>;
+    /// Provide an interface to do key conversions from the viewe Multikey
+    fn conv_view<'a>(&'a self) -> Result<Box<dyn ConvView + 'a>, Error>;
     /// Provide an interface to do key conversions from the viewe Multikey
     fn fingerprint_view<'a>(&'a self) -> Result<Box<dyn FingerprintView + 'a>, Error>;
     /// Provide an interface to do kdf operations from the viewed Multikey
     fn kdf_view<'a>(&'a self, kdf: &'a Multikey) -> Result<Box<dyn KdfView + 'a>, Error>;
-    /// Provide an interface to do key conversions from the viewe Multikey
-    fn key_conv_view<'a>(&'a self) -> Result<Box<dyn KeyConvView + 'a>, Error>;
     /// Provide an interface to sign a message and return a Multisig
     fn sign_view<'a>(&'a self) -> Result<Box<dyn SignView + 'a>, Error>;
     /// Provide an interface to threshold operations on the Mutlikey

@@ -32,7 +32,7 @@ mod tests {
             EncodedMultihash::new(Base::Base58Btc, fv.fingerprint(Codec::Blake2S256).unwrap())
         };
         let pk = {
-            let cv = sk.key_conv_view().unwrap();
+            let cv = sk.conv_view().unwrap();
             cv.to_public_key().unwrap()
         };
         let pkh = {
@@ -64,7 +64,7 @@ mod tests {
 
         // try to get the associated public key
         let mk = {
-            let conv = sk.key_conv_view().unwrap();
+            let conv = sk.conv_view().unwrap();
             let mk = conv.to_public_key().unwrap();
             mk
         };
@@ -121,7 +121,7 @@ mod tests {
             .unwrap();
 
         let mk = {
-            let conv = sk.key_conv_view().unwrap();
+            let conv = sk.conv_view().unwrap();
             let mk = conv.to_public_key().unwrap();
             mk
         };
@@ -165,7 +165,7 @@ mod tests {
         assert_eq!(false, attr.is_encrypted());
         assert_eq!(false, attr.is_public_key());
         assert_eq!(true, attr.is_secret_key());
-        let kd = mk1.key_data_view().unwrap();
+        let kd = mk1.data_view().unwrap();
         assert!(kd.key_bytes().is_ok());
         assert!(kd.secret_bytes().is_ok());
 
@@ -265,7 +265,7 @@ mod tests {
         assert_eq!(false, attr.is_encrypted());
         assert_eq!(false, attr.is_public_key());
         assert_eq!(true, attr.is_secret_key());
-        let kd = mk1.key_data_view().unwrap();
+        let kd = mk1.data_view().unwrap();
         assert!(kd.key_bytes().is_ok());
         assert!(kd.secret_bytes().is_ok());
 
@@ -362,7 +362,7 @@ mod tests {
         assert_eq!(false, attr.is_encrypted());
         assert_eq!(false, attr.is_public_key());
         assert_eq!(true, attr.is_secret_key());
-        let kd = mk1.key_data_view().unwrap();
+        let kd = mk1.data_view().unwrap();
         assert!(kd.key_bytes().is_ok());
         assert!(kd.secret_bytes().is_ok());
 
@@ -427,7 +427,7 @@ mod tests {
         assert_eq!(false, attr.is_encrypted());
         assert_eq!(false, attr.is_public_key());
         assert_eq!(true, attr.is_secret_key());
-        let kd = mk1.key_data_view().unwrap();
+        let kd = mk1.data_view().unwrap();
         assert!(kd.key_bytes().is_ok());
         assert!(kd.secret_bytes().is_ok());
 
@@ -479,7 +479,7 @@ mod tests {
 
         // try to get the associated public key
         let pk = {
-            let conv = sk.key_conv_view().unwrap();
+            let conv = sk.conv_view().unwrap();
             let pk = conv.to_public_key().unwrap();
             pk
         };

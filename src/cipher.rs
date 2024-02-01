@@ -127,7 +127,7 @@ mod tests {
         assert!(attr.is_encrypted());
         assert!(!attr.is_public_key());
         assert!(attr.is_secret_key());
-        let kd = mk.key_data_view().unwrap();
+        let kd = mk.data_view().unwrap();
         assert!(kd.key_bytes().is_ok());
         assert!(kd.secret_bytes().is_err());
         let cattr = mk.cipher_attr_view().unwrap();

@@ -1,7 +1,7 @@
 use crate::{
     error::{AttributesError, CipherError, ConversionsError, KdfError, SignError, VerifyError},
-    AttrId, AttrView, Builder, CipherAttrView, Error, FingerprintView, KdfAttrView, KeyConvView,
-    KeyDataView, Multikey, SignView, VerifyView, Views,
+    AttrId, AttrView, Builder, CipherAttrView, ConvView, DataView, Error, FingerprintView,
+    KdfAttrView, Multikey, SignView, VerifyView, Views,
 };
 use ed25519_dalek::{
     Signature, Signer, SigningKey, VerifyingKey, PUBLIC_KEY_LENGTH, SECRET_KEY_LENGTH,
@@ -48,7 +48,7 @@ impl<'a> AttrView for View<'a> {
     }
 }
 
-impl<'a> KeyDataView for View<'a> {
+impl<'a> DataView for View<'a> {
     /// For Ed25519Pub and Ed25519Priv Multikey values, the key data is stored
     /// using the AttrId::Data attribute id.
     fn key_bytes(&self) -> Result<Zeroizing<Vec<u8>>, Error> {
@@ -148,7 +148,7 @@ impl<'a> FingerprintView for View<'a> {
         } else {
             // get the key bytes
             let bytes = {
-                let kd = self.mk.key_data_view()?;
+                let kd = self.mk.data_view()?;
                 let bytes = kd.key_bytes()?;
                 bytes
             };
@@ -158,12 +158,12 @@ impl<'a> FingerprintView for View<'a> {
     }
 }
 
-impl<'a> KeyConvView for View<'a> {
+impl<'a> ConvView for View<'a> {
     /// try to convert a secret key to a public key
     fn to_public_key(&self) -> Result<Multikey, Error> {
         // get the secret key bytes
         let secret_bytes = {
-            let kd = self.mk.key_data_view()?;
+            let kd = self.mk.data_view()?;
             let secret_bytes = kd.secret_bytes()?;
             secret_bytes
         };
@@ -191,7 +191,7 @@ impl<'a> KeyConvView for View<'a> {
         }
 
         let key_bytes = {
-            let kd = pk.key_data_view()?;
+            let kd = pk.data_view()?;
             let key_bytes = kd.key_bytes()?;
             key_bytes
         };
@@ -212,7 +212,7 @@ impl<'a> KeyConvView for View<'a> {
     /// try to convert a Multikey to an ssh_key::PrivateKey
     fn to_ssh_private_key(&self) -> Result<ssh_key::PrivateKey, Error> {
         let secret_bytes = {
-            let kd = self.mk.key_data_view()?;
+            let kd = self.mk.data_view()?;
             let secret_bytes = kd.secret_bytes()?;
             secret_bytes
         };
@@ -225,7 +225,7 @@ impl<'a> KeyConvView for View<'a> {
             })?;
 
         let pk = self.to_public_key()?;
-        let data = pk.key_data_view()?;
+        let data = pk.data_view()?;
         let public_bytes: [u8; PUBLIC_KEY_LENGTH] = data.key_bytes()?.as_slice()
             [..PUBLIC_KEY_LENGTH]
             .try_into()
@@ -254,7 +254,7 @@ impl<'a> SignView for View<'a> {
 
         // get the secret key bytes
         let secret_bytes = {
-            let kd = self.mk.key_data_view()?;
+            let kd = self.mk.data_view()?;
             let secret_bytes = kd.secret_bytes()?;
             secret_bytes
         };
@@ -288,7 +288,7 @@ impl<'a> VerifyView for View<'a> {
     fn verify(&self, multisig: &Multisig, msg: Option<&[u8]>) -> Result<(), Error> {
         let attr = self.mk.attr_view()?;
         let pubmk = if attr.is_secret_key() {
-            let kc = self.mk.key_conv_view()?;
+            let kc = self.mk.conv_view()?;
             let mk = kc.to_public_key()?;
             mk
         } else {
@@ -297,7 +297,7 @@ impl<'a> VerifyView for View<'a> {
 
         // get the secret key bytes
         let key_bytes = {
-            let kd = pubmk.key_data_view()?;
+            let kd = pubmk.data_view()?;
             let key_bytes = kd.key_bytes()?;
             key_bytes
         };
