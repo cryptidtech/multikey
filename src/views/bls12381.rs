@@ -14,7 +14,7 @@ use blsful::{
 use elliptic_curve::group::GroupEncoding;
 use multicodec::Codec;
 use multihash::{mh, Multihash};
-use multisig::{ms, sig_views::bls12381::SchemeTypeId, Multisig, SigViews};
+use multisig::{ms, views::bls12381::SchemeTypeId, Multisig, Views as SigViews};
 use multitrait::TryDecodeFrom;
 use multiutil::{Varbytes, Varuint};
 use ssh_encoding::{Decode, Encode};
@@ -652,7 +652,7 @@ impl<'a> SignView for View<'a> {
 
         // get the signature scheme
         let sig_scheme: SignatureSchemes =
-            multisig::sig_views::bls12381::SchemeTypeId::try_from(scheme)?.into();
+            multisig::views::bls12381::SchemeTypeId::try_from(scheme)?.into();
 
         match self.mk.codec {
             Codec::Bls12381G1Priv => {
@@ -1011,7 +1011,7 @@ impl<'a> VerifyView for View<'a> {
                     .map_err(|e| ConversionsError::PublicKeyFailure(e.to_string()))?;
 
                 // get the signature data
-                let sv = multisig.sig_data_view()?;
+                let sv = multisig.data_view()?;
                 let sig = sv.sig_bytes().map_err(|_| VerifyError::MissingSignature)?;
 
                 let group_encoding: G1Projective = {
@@ -1057,7 +1057,7 @@ impl<'a> VerifyView for View<'a> {
                 let identifier = av.identifier()?;
 
                 // get the signature data
-                let sv = multisig.sig_data_view()?;
+                let sv = multisig.data_view()?;
                 let value = sv.sig_bytes().map_err(|_| VerifyError::MissingSignature)?;
 
                 let share = Share::with_identifier_and_value(identifier, &value);
@@ -1091,7 +1091,7 @@ impl<'a> VerifyView for View<'a> {
                     .map_err(|e| ConversionsError::PublicKeyFailure(e.to_string()))?;
 
                 // get the signature data
-                let sv = multisig.sig_data_view()?;
+                let sv = multisig.data_view()?;
                 let sig = sv.sig_bytes().map_err(|_| VerifyError::MissingSignature)?;
 
                 let group_encoding: G2Projective = {
@@ -1137,7 +1137,7 @@ impl<'a> VerifyView for View<'a> {
                 let identifier = av.identifier()?;
 
                 // get the signature data
-                let sv = multisig.sig_data_view()?;
+                let sv = multisig.data_view()?;
                 let value = sv.sig_bytes().map_err(|_| VerifyError::MissingSignature)?;
 
                 let share = Share::with_identifier_and_value(identifier, &value);

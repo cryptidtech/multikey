@@ -10,7 +10,7 @@ use k256::ecdsa::{
 };
 use multicodec::Codec;
 use multihash::{mh, Multihash};
-use multisig::{ms, Multisig, SigViews};
+use multisig::{ms, Multisig, Views as SigViews};
 use multitrait::TryDecodeFrom;
 use multiutil::Varuint;
 use ssh_encoding::{Decode, Encode};
@@ -345,7 +345,7 @@ impl<'a> VerifyView for View<'a> {
             .map_err(|e| ConversionsError::PublicKeyFailure(e.to_string()))?;
 
         // get the signature data
-        let sv = multisig.sig_data_view()?;
+        let sv = multisig.data_view()?;
         let sig = sv.sig_bytes().map_err(|_| VerifyError::MissingSignature)?;
 
         // create the signature
