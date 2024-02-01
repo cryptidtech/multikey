@@ -7,7 +7,7 @@ A Rust implementation of the [multiformats][1] [multikey specification][2].
 
 ## Current Status
 
-This implementation of the multikey specification supports both public key and
+This implementation of the Multikey specification supports both public key and
 secret key cryptography keys. For public key cryptography, it supports public
 and secret keys for EdDSA, and ECDSA using the Nist P256, P384, and P521
 curves. For secret key cryptography it supports ChaCha-256 keys and encryption 
@@ -19,7 +19,7 @@ ChaCha20-Poly1305 AEAD with keys derived using Bcrypt KDF.
 This implementation also supports BLS12381 G1/G2 public key cryptography with 
 key splitting and combining as well as threshold signing and verifying.
 
-For the technical details of the design of multikey, please refer to the
+For the technical details of the design of Multikey, please refer to the
 [specification][2].
 
 ## Introduction
@@ -27,8 +27,8 @@ For the technical details of the design of multikey, please refer to the
 This is a Rust implementation of a multicodec format for encryption keys. The 
 design of the format is intentionally abstract to support any kind of
 encryption key in any state (e.g. encrypted or unencrypted). This format should
-be best through of as a container of key material with abstract, algorithm-
-specific views with a generic and self-describing data storage format.
+be best thought of as a container of key material with abstract, algorithm-
+specific views and a generic and self-describing data storage format.
 
 Every piece of data in the serialized Multikey object either has a known-fixed
 size or a self-describing variable size such that software processing these
