@@ -153,6 +153,7 @@ impl Builder {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::{mk, Views};
 
     #[test]
     fn test_random() {
@@ -181,6 +182,29 @@ mod tests {
         let n = Builder::new_from_random_bytes(32, &mut rng)
             .try_build_encoded()
             .unwrap();
+        //println!("{}", n);
+        let s = n.to_string();
+        assert_eq!(n, EncodedNonce::try_from(s.as_str()).unwrap());
+    }
+
+    #[test]
+    fn test_nonce_multisig_roundtrip() {
+        let mut rng = rand::rngs::OsRng::default();
+        let mk = mk::Builder::new_from_random_bytes(Codec::Ed25519Priv, &mut rng)
+            .unwrap()
+            .with_comment("test key")
+            .try_build()
+            .unwrap();
+
+        let msg = hex::decode("8bb78be51ac7cc98f44e38947ff8a128764ec039b89687a790dfa8444ba97682")
+            .unwrap();
+
+        let signmk = mk.sign_view().unwrap();
+        let signature = signmk.sign(msg.as_slice(), false, None).unwrap();
+
+        let s: Vec<u8> = signature.into();
+        let n = Builder::new_from_bytes(&s).try_build_encoded().unwrap();
+        //println!("{}", n);
         let s = n.to_string();
         assert_eq!(n, EncodedNonce::try_from(s.as_str()).unwrap());
     }
