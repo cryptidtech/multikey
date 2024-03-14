@@ -1313,6 +1313,14 @@ mod tests {
             assert_eq!("test key".to_string(), share.comment);
         }
 
+        let msg = hex::decode("8bb78be51ac7cc98f44e38947ff8a128764ec039b89687a790dfa8444ba97682")
+            .unwrap();
+
+        let signmk = shares[0].sign_view().unwrap();
+        let signature = signmk.sign(msg.as_slice(), false, Some(2_u8)).unwrap();
+        let s: Vec<u8> = signature.into();
+        println!("{}", hex::encode(&s));
+
         let mut builder = Builder::new(Codec::Bls12381G1Priv).with_comment("test key");
         for share in &shares {
             builder = builder.add_key_share(share);

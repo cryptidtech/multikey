@@ -1,6 +1,6 @@
 [package]
 name = "multikey"
-version = "0.8.5"
+version = "0.8.6"
 edition = "2021"
 authors = ["Dave Huseby <dwh@linuxprogrammer.org>"]
 description = "Multikey self-describing cryptographic key data"
@@ -13,8 +13,8 @@ default = ["serde"]
 
 [dependencies]
 bcrypt-pbkdf = "0.10"
-blsful = "2.4"
-ed25519-dalek = { version = "2.0", features = ["rand_core"] }
+blsful = "2.5"
+ed25519-dalek = { version = "2.1", features = ["rand_core"] }
 elliptic-curve = "0.13"
 hex = "0.4"
 k256 = "0.13"
@@ -28,13 +28,13 @@ rand = "0.8"
 sec1 = "0.7"
 serde = { version = "1.0", default-features = false, features = ["alloc", "derive"], optional = true }
 sodiumoxide = "0.2"
-ssh-key = { version = "0.6.2", features = ["alloc", "crypto", "ed25519"]}
+ssh-key = { version = "0.6", features = ["alloc", "crypto", "ed25519"]}
 ssh-encoding = "0.2"
 thiserror = "1.0"
 typenum = "1.17"
 unsigned-varint = { version = "0.8", features = ["std"]}
-vsss-rs = "3.3"
-zeroize = "1.6"
+vsss-rs = "3.4"
+zeroize = "1.7"
 
 [dev-dependencies]
 serde_test = "1.0"

@@ -8,6 +8,7 @@ use crate::{
 };
 use blsful::{
     inner_types::{G1Projective, G2Projective},
+    vsss_rs::Share,
     Bls12381G1Impl, Bls12381G2Impl, PublicKey, PublicKeyShare, SecretKey, SecretKeyShare,
     Signature, SignatureSchemes, SignatureShare, SECRET_KEY_BYTES,
 };
@@ -19,7 +20,6 @@ use multitrait::TryDecodeFrom;
 use multiutil::{Varbytes, Varuint};
 use ssh_encoding::{Decode, Encode};
 use std::{array::TryFromSliceError, collections::BTreeMap};
-use vsss_rs::Share;
 use zeroize::Zeroizing;
 
 /// the RFC 4251 algorithm name for SSH compatibility
@@ -386,7 +386,7 @@ impl<'a> ConvView for View<'a> {
                 let public_key = secret_key
                     .public_key()
                     .map_err(|e| ConversionsError::PublicKeyFailure(e.to_string()))?;
-                let key_bytes = public_key.0.value().to_vec();
+                let key_bytes = public_key.0 .0.value().to_vec();
                 Builder::new(Codec::Bls12381G1PubShare)
                     .with_comment(&self.mk.comment)
                     .with_key_bytes(&key_bytes)
@@ -431,7 +431,7 @@ impl<'a> ConvView for View<'a> {
                 let public_key = secret_key
                     .public_key()
                     .map_err(|e| ConversionsError::PublicKeyFailure(e.to_string()))?;
-                let key_bytes = public_key.0.value().to_vec();
+                let key_bytes = public_key.0 .0.value().to_vec();
                 Builder::new(Codec::Bls12381G1PubShare)
                     .with_comment(&self.mk.comment)
                     .with_key_bytes(&key_bytes)
