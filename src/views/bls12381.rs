@@ -386,7 +386,7 @@ impl<'a> ConvView for View<'a> {
                 let public_key = secret_key
                     .public_key()
                     .map_err(|e| ConversionsError::PublicKeyFailure(e.to_string()))?;
-                let key_bytes = public_key.0 .0.value().to_vec();
+                let key_bytes = public_key.0 .0.value_vec();
                 Builder::new(Codec::Bls12381G1PubShare)
                     .with_comment(&self.mk.comment)
                     .with_key_bytes(&key_bytes)
@@ -431,7 +431,7 @@ impl<'a> ConvView for View<'a> {
                 let public_key = secret_key
                     .public_key()
                     .map_err(|e| ConversionsError::PublicKeyFailure(e.to_string()))?;
-                let key_bytes = public_key.0 .0.value().to_vec();
+                let key_bytes = public_key.0 .0.value_vec();
                 Builder::new(Codec::Bls12381G1PubShare)
                     .with_comment(&self.mk.comment)
                     .with_key_bytes(&key_bytes)
@@ -796,7 +796,7 @@ impl<'a> ThresholdView for View<'a> {
                 key_shares
                     .iter()
                     .try_for_each(|share| -> Result<(), Error> {
-                        let key_bytes = share.as_raw_value().value();
+                        let key_bytes = share.as_raw_value().value_vec();
                         let identifier = share.as_raw_value().identifier();
 
                         let mk = Builder::new(Codec::Bls12381G1PrivShare)
@@ -836,7 +836,7 @@ impl<'a> ThresholdView for View<'a> {
                 key_shares
                     .iter()
                     .try_for_each(|share| -> Result<(), Error> {
-                        let key_bytes = share.as_raw_value().value();
+                        let key_bytes = share.as_raw_value().value_vec();
                         let identifier = share.as_raw_value().identifier();
 
                         let mk = Builder::new(Codec::Bls12381G2PrivShare)

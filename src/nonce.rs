@@ -182,7 +182,8 @@ mod tests {
         let n = Builder::new_from_random_bytes(32, &mut rng)
             .try_build_encoded()
             .unwrap();
-        //println!("{}", n);
+        let s = n.to_string();
+        println!("({}) {}", s.len(), s);
         let s = n.to_string();
         assert_eq!(n, EncodedNonce::try_from(s.as_str()).unwrap());
     }
