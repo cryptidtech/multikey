@@ -7,7 +7,7 @@ use crate::{
 
 use multibase::Base;
 use multicodec::Codec;
-use multitrait::TryDecodeFrom;
+use multitrait::{Null, TryDecodeFrom};
 use multiutil::{BaseEncoded, CodecInfo, EncodingInfo, Varbytes, Varuint};
 use rand::{CryptoRng, RngCore};
 use ssh_key::{
@@ -132,6 +132,16 @@ impl<'a> TryDecodeFrom<'a> for Multikey {
             },
             ptr,
         ))
+    }
+}
+
+impl Null for Multikey {
+    fn null() -> Self {
+        Self::default()
+    }
+
+    fn is_null(&self) -> bool {
+        *self == Self::null()
     }
 }
 
@@ -854,6 +864,7 @@ impl Builder {
 mod tests {
     use super::*;
     use crate::{cipher, kdf, views};
+    use multisig::EncodedMultisig;
 
     #[test]
     fn test_ed25519_random() {
@@ -877,7 +888,7 @@ mod tests {
             .try_build_encoded()
             .unwrap();
         let s = mk.to_string();
-        //println!("ed25519: {}", s);
+        println!("ed25519: {}", s);
         assert_eq!(mk, EncodedMultikey::try_from(s.as_str()).unwrap());
     }
 
@@ -903,7 +914,7 @@ mod tests {
             .try_build_encoded()
             .unwrap();
         let s = mk.to_string();
-        //println!("secp256k1: {}", s);
+        println!("secp256k1: {}", s);
         assert_eq!(mk, EncodedMultikey::try_from(s.as_str()).unwrap());
     }
 
@@ -929,7 +940,7 @@ mod tests {
             .try_build_encoded()
             .unwrap();
         let s = mk.to_string();
-        //println!("bls12381g2: {}", s);
+        println!("bls12381g2: {}", s);
         assert_eq!(mk, EncodedMultikey::try_from(s.as_str()).unwrap());
     }
 
@@ -1141,12 +1152,16 @@ mod tests {
         let kd = mk.data_view().unwrap();
         assert!(kd.key_bytes().is_ok());
         assert!(kd.secret_bytes().is_ok());
+        let conv = mk.conv_view().unwrap();
+        let pk = EncodedMultikey::new(Base::Base16Lower, conv.to_public_key().unwrap());
+        println!("ed25519 pubkey: {}", pk.to_string());
 
-        let msg = hex::decode("8bb78be51ac7cc98f44e38947ff8a128764ec039b89687a790dfa8444ba97682")
-            .unwrap();
+        let msg = b"for great justice, move every zig!".to_vec();
 
         let signmk = mk.sign_view().unwrap();
         let signature = signmk.sign(msg.as_slice(), false, None).unwrap();
+        let sig = EncodedMultisig::new(Base::Base16Lower, signature.clone());
+        println!("signaure: {}", sig.to_string());
 
         let verifymk = mk.verify_view().unwrap();
         assert!(verifymk.verify(&signature, Some(&msg)).is_ok());
@@ -1565,5 +1580,14 @@ mod tests {
         let kd = mk.data_view().unwrap();
         assert!(kd.key_bytes().is_ok());
         assert!(kd.secret_bytes().is_ok());
+    }
+
+    #[test]
+    fn test_null() {
+        let mk1 = Multikey::null();
+        assert!(mk1.is_null());
+        let mk2 = Multikey::default();
+        assert_eq!(mk1, mk2);
+        assert!(mk2.is_null());
     }
 }

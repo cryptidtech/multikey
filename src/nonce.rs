@@ -2,7 +2,7 @@ use crate::{error::NonceError, Error};
 use core::fmt;
 use multibase::Base;
 use multicodec::Codec;
-use multitrait::TryDecodeFrom;
+use multitrait::{Null, TryDecodeFrom};
 use multiutil::{BaseEncoded, CodecInfo, EncodingInfo, Varbytes};
 use rand::{CryptoRng, RngCore};
 
@@ -91,6 +91,16 @@ impl<'a> TryDecodeFrom<'a> for Nonce {
             },
             ptr,
         ))
+    }
+}
+
+impl Null for Nonce {
+    fn null() -> Self {
+        Self::default()
+    }
+
+    fn is_null(&self) -> bool {
+        *self == Self::null()
     }
 }
 
@@ -208,5 +218,14 @@ mod tests {
         //println!("{}", n);
         let s = n.to_string();
         assert_eq!(n, EncodedNonce::try_from(s.as_str()).unwrap());
+    }
+
+    #[test]
+    fn test_null() {
+        let n1 = Nonce::null();
+        assert!(n1.is_null());
+        let n2 = Nonce::default();
+        assert_eq!(n1, n2);
+        assert!(n2.is_null());
     }
 }
