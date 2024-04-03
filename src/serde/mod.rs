@@ -8,6 +8,7 @@ mod tests {
     use multibase::Base;
     use multicodec::Codec;
     use multihash::EncodedMultihash;
+    use multitrait::Null;
     use multiutil::BaseEncoded;
     use serde::{Deserialize, Serialize};
     use serde_test::{assert_tokens, Configure, Token};
@@ -547,6 +548,92 @@ mod tests {
                 ),
                 Token::StructEnd,
             ],
+        );
+    }
+
+    #[test]
+    fn test_null_multikey_serde_compact() {
+        let mk = Multikey::null();
+        assert_tokens(
+            &mk.compact(),
+            &[
+                Token::Tuple { len: 4 },
+                Token::BorrowedBytes(&[0x3a]),
+                Token::BorrowedBytes(&[0x0]),
+                Token::BorrowedBytes(&[0x0]),
+                Token::Seq { len: Some(0), },
+                Token::SeqEnd,
+                Token::TupleEnd,
+            ]
+        );
+    }
+
+    #[test]
+    fn test_null_multikey_serde_readable() {
+        let mk = Multikey::null();
+        assert_tokens(
+            &mk.readable(),
+            &[
+                Token::Struct { name: "multikey", len: 3, },
+                Token::BorrowedStr("codec"),
+                Token::BorrowedStr("identity"),
+                Token::BorrowedStr("comment"),
+                Token::BorrowedStr(""),
+                Token::BorrowedStr("attributes"),
+                Token::Seq { len: Some(0), },
+                Token::SeqEnd,
+                Token::StructEnd,
+            ]
+        );
+    }
+
+    #[test]
+    fn test_encoded_multikey_nonce_serde_readable() {
+        let mk: EncodedMultikey = Multikey::null().into();
+        assert_tokens(
+            &mk.readable(),
+            &[
+                Token::BorrowedStr("f3a000000"),
+            ]
+        );
+    }
+
+    #[test]
+    fn test_null_nonce_serde_compact() {
+        let n = nonce::Nonce::null();
+        assert_tokens(
+            &n.compact(),
+            &[
+                Token::Tuple { len: 2 },
+                Token::BorrowedBytes(&[0x3b]),
+                Token::BorrowedBytes(&[0x0]),
+                Token::TupleEnd,
+            ]
+        );
+    }
+
+    #[test]
+    fn test_null_nonce_serde_readable() {
+        let n = nonce::Nonce::null();
+        assert_tokens(
+            &n.readable(),
+            &[
+                Token::Struct { name: "nonce", len: 1, },
+                Token::BorrowedStr("nonce"),
+                Token::BorrowedStr("f00"),
+                Token::StructEnd,
+            ]
+        );
+    }
+
+    #[test]
+    fn test_encoded_null_nonce_serde_readable() {
+        let n: nonce::EncodedNonce = nonce::Nonce::null().into();
+        assert_tokens(
+            &n.readable(),
+            &[
+                Token::BorrowedStr("f3b00"),
+            ]
         );
     }
 }
