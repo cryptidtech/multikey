@@ -588,7 +588,7 @@ mod tests {
     }
 
     #[test]
-    fn test_encoded_multikey_nonce_serde_readable() {
+    fn test_encoded_null_multikey_serde_readable() {
         let mk: EncodedMultikey = Multikey::null().into();
         assert_tokens(
             &mk.readable(),
