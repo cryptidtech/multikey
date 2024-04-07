@@ -1,3 +1,4 @@
+// SPDX-License-Idnetifier: Apache-2.0
 use crate::{
     error::{AttributesError, CipherError, ConversionsError, KdfError},
     views::{bcrypt, bls12381, chacha20, ed25519, secp256k1},
@@ -1156,15 +1157,15 @@ mod tests {
         let pk = EncodedMultikey::new(Base::Base16Lower, conv.to_public_key().unwrap());
         println!("ed25519 pubkey: {}", pk.to_string());
 
-        let msg = b"for great justice, move every zig!".to_vec();
+        let msg = "for great justice, move every zig!";
 
         let signmk = mk.sign_view().unwrap();
-        let signature = signmk.sign(msg.as_slice(), false, None).unwrap();
+        let signature = signmk.sign(msg.as_bytes(), false, None).unwrap();
         let sig = EncodedMultisig::new(Base::Base16Lower, signature.clone());
         println!("signaure: {}", sig.to_string());
 
         let verifymk = mk.verify_view().unwrap();
-        assert!(verifymk.verify(&signature, Some(&msg)).is_ok());
+        assert!(verifymk.verify(&signature, Some(msg.as_bytes())).is_ok());
     }
 
     #[test]

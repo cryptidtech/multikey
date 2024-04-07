@@ -1,3 +1,4 @@
+// SPDX-License-Idnetifier: Apache-2.0
 use crate::{
     error::{AttributesError, CipherError, ConversionsError, KdfError, SignError, VerifyError},
     AttrId, AttrView, Builder, CipherAttrView, ConvView, DataView, Error, FingerprintView,

@@ -1,3 +1,4 @@
+// SPDX-License-Idnetifier: Apache-2.0
 //!
 #![warn(missing_docs)]
 #![deny(

@@ -1,3 +1,4 @@
+// SPDX-License-Idnetifier: Apache-2.0
 use crate::{error::AttributesError, Error};
 use multitrait::{EncodeInto, TryDecodeFrom};
 use std::fmt;

@@ -1,3 +1,4 @@
+// SPDX-License-Idnetifier: Apache-2.0
 use crate::{error::KdfError, AttrId, Error, KdfAttrView, KdfView, Multikey, Views};
 use multicodec::Codec;
 use multiutil::Varuint;

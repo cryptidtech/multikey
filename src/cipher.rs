@@ -1,3 +1,4 @@
+// SPDX-License-Idnetifier: Apache-2.0
 use crate::{mk::Attributes, AttrId, Error, Multikey};
 use multicodec::Codec;
 use rand::{CryptoRng, RngCore};
