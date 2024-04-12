@@ -31,7 +31,7 @@ pub use views::{
 
 /// Multikey type and functions
 pub mod mk;
-pub use mk::{KEY_GEN_CODECS, Builder, EncodedMultikey, Multikey};
+pub use mk::{KEY_CODECS, KEY_SHARE_CODECS, Builder, EncodedMultikey, Multikey};
 
 /// Nonce type
 pub mod nonce;

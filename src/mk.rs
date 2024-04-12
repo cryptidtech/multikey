@@ -20,7 +20,7 @@ use std::{collections::BTreeMap, fmt};
 use zeroize::Zeroizing;
 
 /// the list of key codecs supported for key generation
-pub const KEY_GEN_CODECS: [Codec; 4] = [
+pub const KEY_CODECS: [Codec; 4] = [
     Codec::Ed25519Priv,
     /*
     Codec::P256Priv,
@@ -30,6 +30,13 @@ pub const KEY_GEN_CODECS: [Codec; 4] = [
     Codec::Secp256K1Priv,
     Codec::Bls12381G1Priv,
     Codec::Bls12381G2Priv];
+
+/// the list of key share codecs supported
+pub const KEY_SHARE_CODECS: [Codec; 4] = [
+    Codec::Bls12381G1PubShare,
+    Codec::Bls12381G1PrivShare,
+    Codec::Bls12381G2PubShare,
+    Codec::Bls12381G2PrivShare];
 
 /// the multicodec sigil for multikey
 pub const SIGIL: Codec = Codec::Multikey;
@@ -881,7 +888,7 @@ mod tests {
 
     #[test]
     fn test_random() {
-        for codec in KEY_GEN_CODECS {
+        for codec in KEY_CODECS {
             let mut rng = rand::rngs::OsRng::default();
             let mk = Builder::new_from_random_bytes(codec, &mut rng)
                 .unwrap()
@@ -894,7 +901,7 @@ mod tests {
 
     #[test]
     fn test_encoded_random() {
-        for codec in KEY_GEN_CODECS {
+        for codec in KEY_CODECS {
             let mut rng = rand::rngs::OsRng::default();
             let mk = Builder::new_from_random_bytes(codec, &mut rng)
                 .unwrap()
@@ -910,7 +917,7 @@ mod tests {
 
     #[test]
     fn test_random_public_ssh_key_roundtrip() {
-        for codec in KEY_GEN_CODECS {
+        for codec in KEY_CODECS {
             let mut rng = rand::rngs::OsRng::default();
             let mk = Builder::new_from_random_bytes(codec, &mut rng)
                 .unwrap()
@@ -930,7 +937,7 @@ mod tests {
 
     #[test]
     fn test_random_private_ssh_key_roundtrip() {
-        for codec in KEY_GEN_CODECS {
+        for codec in KEY_CODECS {
             let mut rng = rand::rngs::OsRng::default();
             let mk = Builder::new_from_random_bytes(codec, &mut rng)
                 .unwrap()
@@ -949,7 +956,7 @@ mod tests {
 
     #[test]
     fn test_ssh_key_roundtrip() {
-        for codec in KEY_GEN_CODECS {
+        for codec in KEY_CODECS {
             let mut rng = rand::rngs::OsRng::default();
             let sk1 = Builder::new_from_random_bytes(codec, &mut rng)
                 .unwrap()
@@ -979,7 +986,7 @@ mod tests {
 
     #[test]
     fn test_encryption_roundtrip() {
-        for codec in KEY_GEN_CODECS {
+        for codec in KEY_CODECS {
             let mut rng = rand::rngs::OsRng::default();
             let mk1 = Builder::new_from_random_bytes(codec, &mut rng)
                 .unwrap()
@@ -1068,7 +1075,7 @@ mod tests {
 
     #[test]
     fn test_signing_detached_roundtrip() {
-        for codec in KEY_GEN_CODECS {
+        for codec in KEY_CODECS {
             let mut rng = rand::rngs::OsRng::default();
             let mk = Builder::new_from_random_bytes(codec, &mut rng)
                 .unwrap()
@@ -1105,7 +1112,7 @@ mod tests {
 
     #[test]
     fn test_signing_merged_roundtrip() {
-        for codec in KEY_GEN_CODECS {
+        for codec in KEY_CODECS {
             let mut rng = rand::rngs::OsRng::default();
             let mk = Builder::new_from_random_bytes(codec, &mut rng)
                 .unwrap()
