@@ -19,6 +19,18 @@ use ssh_key::{
 use std::{collections::BTreeMap, fmt};
 use zeroize::Zeroizing;
 
+/// the list of key codecs supported for key generation
+pub const KEY_GEN_CODECS: [Codec; 4] = [
+    Codec::Ed25519Priv,
+    /*
+    Codec::P256Priv,
+    Codec::P384Priv,
+    Codec::P521Priv,
+    */
+    Codec::Secp256K1Priv,
+    Codec::Bls12381G1Priv,
+    Codec::Bls12381G2Priv];
+
 /// the multicodec sigil for multikey
 pub const SIGIL: Codec = Codec::Multikey;
 
@@ -864,452 +876,267 @@ impl Builder {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{cipher, kdf, views};
+    use crate::{cipher, kdf};
     use multisig::EncodedMultisig;
 
     #[test]
-    fn test_ed25519_random() {
-        let mut rng = rand::rngs::OsRng::default();
-        let mk = Builder::new_from_random_bytes(Codec::Ed25519Priv, &mut rng)
-            .unwrap()
-            .with_comment("test key")
-            .try_build()
-            .unwrap();
-        let v: Vec<u8> = mk.into();
-        assert_eq!(47, v.len());
+    fn test_random() {
+        for codec in KEY_GEN_CODECS {
+            let mut rng = rand::rngs::OsRng::default();
+            let mk = Builder::new_from_random_bytes(codec, &mut rng)
+                .unwrap()
+                .with_comment("test key")
+                .try_build()
+                .unwrap();
+            let _v: Vec<u8> = mk.into();
+        }
     }
 
     #[test]
-    fn test_ed25519_encoded_random() {
-        let mut rng = rand::rngs::OsRng::default();
-        let mk = Builder::new_from_random_bytes(Codec::Ed25519Priv, &mut rng)
-            .unwrap()
-            .with_base_encoding(Base::Base58Btc)
-            .with_comment("test key")
-            .try_build_encoded()
-            .unwrap();
-        let s = mk.to_string();
-        println!("ed25519: {}", s);
-        assert_eq!(mk, EncodedMultikey::try_from(s.as_str()).unwrap());
+    fn test_encoded_random() {
+        for codec in KEY_GEN_CODECS {
+            let mut rng = rand::rngs::OsRng::default();
+            let mk = Builder::new_from_random_bytes(codec, &mut rng)
+                .unwrap()
+                .with_base_encoding(Base::Base58Btc)
+                .with_comment("test key")
+                .try_build_encoded()
+                .unwrap();
+            let s = mk.to_string();
+            println!("ed25519: {}", s);
+            assert_eq!(mk, EncodedMultikey::try_from(s.as_str()).unwrap());
+        }
     }
 
     #[test]
-    fn test_secp256k1_random() {
-        let mut rng = rand::rngs::OsRng::default();
-        let mk = Builder::new_from_random_bytes(Codec::Secp256K1Priv, &mut rng)
-            .unwrap()
-            .with_comment("test key")
-            .try_build()
-            .unwrap();
-        let v: Vec<u8> = mk.into();
-        assert_eq!(47, v.len());
+    fn test_random_public_ssh_key_roundtrip() {
+        for codec in KEY_GEN_CODECS {
+            let mut rng = rand::rngs::OsRng::default();
+            let mk = Builder::new_from_random_bytes(codec, &mut rng)
+                .unwrap()
+                .with_comment("test key")
+                .try_build()
+                .unwrap();
+            let conv = mk.conv_view().unwrap();
+            let pk = conv.to_public_key().unwrap();
+            let ssh_key = conv.to_ssh_public_key().unwrap();
+            let mk2 = Builder::new_from_ssh_public_key(&ssh_key)
+                .unwrap()
+                .try_build()
+                .unwrap();
+            assert_eq!(pk, mk2);
+        }
     }
 
     #[test]
-    fn test_secp256k1_encoded_random() {
-        let mut rng = rand::rngs::OsRng::default();
-        let mk = Builder::new_from_random_bytes(Codec::Secp256K1Priv, &mut rng)
-            .unwrap()
-            .with_base_encoding(Base::Base58Btc)
-            .with_comment("test key")
-            .try_build_encoded()
-            .unwrap();
-        let s = mk.to_string();
-        println!("secp256k1: {}", s);
-        assert_eq!(mk, EncodedMultikey::try_from(s.as_str()).unwrap());
+    fn test_random_private_ssh_key_roundtrip() {
+        for codec in KEY_GEN_CODECS {
+            let mut rng = rand::rngs::OsRng::default();
+            let mk = Builder::new_from_random_bytes(codec, &mut rng)
+                .unwrap()
+                .with_comment("test key")
+                .try_build()
+                .unwrap();
+            let conv = mk.conv_view().unwrap();
+            let ssh_key = conv.to_ssh_private_key().unwrap();
+            let mk2 = Builder::new_from_ssh_private_key(&ssh_key)
+                .unwrap()
+                .try_build()
+                .unwrap();
+            assert_eq!(mk, mk2);
+        }
     }
 
     #[test]
-    fn test_bls_random() {
-        let mut rng = rand::rngs::OsRng::default();
-        let mk = Builder::new_from_random_bytes(Codec::Bls12381G2Priv, &mut rng)
-            .unwrap()
-            .with_comment("test key")
-            .try_build()
-            .unwrap();
-        let v: Vec<u8> = mk.into();
-        assert_eq!(47, v.len());
-    }
+    fn test_ssh_key_roundtrip() {
+        for codec in KEY_GEN_CODECS {
+            let mut rng = rand::rngs::OsRng::default();
+            let sk1 = Builder::new_from_random_bytes(codec, &mut rng)
+                .unwrap()
+                .with_comment("test key")
+                .try_build()
+                .unwrap();
+            let cv = sk1.conv_view().unwrap();
+            let public_key = cv.to_ssh_public_key().unwrap();
+            let private_key = cv.to_ssh_private_key().unwrap();
 
-    #[test]
-    fn test_bls_encoded_random() {
-        let mut rng = rand::rngs::OsRng::default();
-        let mk = Builder::new_from_random_bytes(Codec::Bls12381G2Priv, &mut rng)
-            .unwrap()
-            .with_base_encoding(Base::Base58Btc)
-            .with_comment("test key")
-            .try_build_encoded()
-            .unwrap();
-        let s = mk.to_string();
-        println!("bls12381g2: {}", s);
-        assert_eq!(mk, EncodedMultikey::try_from(s.as_str()).unwrap());
-    }
+            let pk1 = cv.to_public_key().unwrap();
+            let cv = pk1.conv_view().unwrap();
+            assert_eq!(public_key, cv.to_ssh_public_key().unwrap());
 
-    #[test]
-    fn test_ed25519_random_public_ssh_key_roundtrip() {
-        let mut rng = rand::rngs::OsRng::default();
-        let mk = Builder::new_from_random_bytes(Codec::Ed25519Priv, &mut rng)
-            .unwrap()
-            .with_comment("test key")
-            .try_build()
-            .unwrap();
-        let conv = mk.conv_view().unwrap();
-        let pk = conv.to_public_key().unwrap();
-        let ssh_key = conv.to_ssh_public_key().unwrap();
-        let mk2 = Builder::new_from_ssh_public_key(&ssh_key)
-            .unwrap()
-            .try_build()
-            .unwrap();
-        assert_eq!(pk, mk2);
-    }
-
-    #[test]
-    fn test_ed25519_random_private_ssh_key_roundtrip() {
-        let mut rng = rand::rngs::OsRng::default();
-        let mk = Builder::new_from_random_bytes(Codec::Ed25519Priv, &mut rng)
-            .unwrap()
-            .with_comment("test key")
-            .try_build()
-            .unwrap();
-        let conv = mk.conv_view().unwrap();
-        let ssh_key = conv.to_ssh_private_key().unwrap();
-        let mk2 = Builder::new_from_ssh_private_key(&ssh_key)
-            .unwrap()
-            .try_build()
-            .unwrap();
-        assert_eq!(mk, mk2);
-    }
-
-    #[test]
-    fn test_secp256k1_random_public_ssh_key_roundtrip() {
-        let mut rng = rand::rngs::OsRng::default();
-        let mk = Builder::new_from_random_bytes(Codec::Secp256K1Priv, &mut rng)
-            .unwrap()
-            .with_comment("test key")
-            .try_build()
-            .unwrap();
-        let conv = mk.conv_view().unwrap();
-        let pk = conv.to_public_key().unwrap();
-        let ssh_key = conv.to_ssh_public_key().unwrap();
-        let mk2 = Builder::new_from_ssh_public_key(&ssh_key)
-            .unwrap()
-            .try_build()
-            .unwrap();
-        assert_eq!(pk, mk2);
-    }
-
-    #[test]
-    fn test_secp256k1_random_private_ssh_key_roundtrip() {
-        let mut rng = rand::rngs::OsRng::default();
-        let mk = Builder::new_from_random_bytes(Codec::Secp256K1Priv, &mut rng)
-            .unwrap()
-            .with_comment("test key")
-            .try_build()
-            .unwrap();
-        let conv = mk.conv_view().unwrap();
-        let ssh_key = conv.to_ssh_private_key().unwrap();
-        let mk2 = Builder::new_from_ssh_private_key(&ssh_key)
-            .unwrap()
-            .try_build()
-            .unwrap();
-        assert_eq!(mk, mk2);
-    }
-
-    #[test]
-    fn test_bls_random_public_ssh_key_roundtrip() {
-        let mut rng = rand::rngs::OsRng::default();
-        let mk = Builder::new_from_random_bytes(Codec::Bls12381G1Priv, &mut rng)
-            .unwrap()
-            .with_comment("test key")
-            .try_build()
-            .unwrap();
-        let conv = mk.conv_view().unwrap();
-        let pk = conv.to_public_key().unwrap();
-        let ssh_key = conv.to_ssh_public_key().unwrap();
-        let mk2 = Builder::new_from_ssh_public_key(&ssh_key)
-            .unwrap()
-            .try_build()
-            .unwrap();
-        assert_eq!(pk, mk2);
-    }
-
-    #[test]
-    fn test_bls_random_private_ssh_key_roundtrip() {
-        let mut rng = rand::rngs::OsRng::default();
-        let mk = Builder::new_from_random_bytes(Codec::Bls12381G1Priv, &mut rng)
-            .unwrap()
-            .with_comment("test key")
-            .try_build()
-            .unwrap();
-        let conv = mk.conv_view().unwrap();
-        let ssh_key = conv.to_ssh_private_key().unwrap();
-        let mk2 = Builder::new_from_ssh_private_key(&ssh_key)
-            .unwrap()
-            .try_build()
-            .unwrap();
-        assert_eq!(mk, mk2);
+            let sk2 = Builder::new_from_ssh_private_key(&private_key)
+                .unwrap()
+                .try_build()
+                .unwrap();
+            assert_eq!(sk1, sk2);
+            let pk2 = Builder::new_from_ssh_public_key(&public_key)
+                .unwrap()
+                .try_build()
+                .unwrap();
+            assert_eq!(pk1, pk2);
+        }
     }
 
     #[test]
     fn test_encryption_roundtrip() {
-        let mut rng = rand::rngs::OsRng::default();
-        let mk1 = Builder::new_from_random_bytes(Codec::Ed25519Priv, &mut rng)
-            .unwrap()
-            .with_comment("test key")
-            .try_build()
-            .unwrap();
-
-        let attr = mk1.attr_view().unwrap();
-        assert!(!attr.is_encrypted());
-        assert!(!attr.is_public_key());
-        assert!(attr.is_secret_key());
-        let kd = mk1.data_view().unwrap();
-        assert!(kd.key_bytes().is_ok());
-        assert!(kd.secret_bytes().is_ok());
-
-        let mk2 = {
-            let kdfmk = kdf::Builder::new(Codec::BcryptPbkdf)
-                .with_random_salt(views::bcrypt::SALT_LENGTH, &mut rng)
-                .with_rounds(10)
-                .try_build()
-                .unwrap();
-            let ciphermk = cipher::Builder::new(Codec::Chacha20Poly1305)
-                .with_random_nonce(views::chacha20::NONCE_LENGTH, &mut rng)
-                .try_build()
-                .unwrap();
-            // get the kdf view on the cipher multikey so we can generate a
-            // new cipher multikey with the same parameters and the generated key
-            let kdf = ciphermk.kdf_view(&kdfmk).unwrap();
-            // derive a key from the passphrase and add it to the cipher multikey
-            let ciphermk = kdf
-                .derive_key(b"for great justice, move every zig!")
-                .unwrap();
-            // get the cipher view on the unencrypted ed25519 secret key so
-            // that we can create a new ed25519 secret key with an encrypted
-            // key and the kdf and cipher attributes and data
-            let cipher = mk1.cipher_view(&ciphermk).unwrap();
-            // encrypt the multikey using the cipher
-            let mk = cipher.encrypt().unwrap();
-            mk
-        };
-
-        let attr = mk2.attr_view().unwrap();
-        assert_eq!(true, attr.is_encrypted());
-        assert_eq!(false, attr.is_public_key());
-        assert_eq!(true, attr.is_secret_key());
-        let kd = mk2.data_view().unwrap();
-        assert!(kd.key_bytes().is_ok());
-        assert!(kd.secret_bytes().is_err()); // encrypted key
-
-        let mk3 = {
-            let kdfmk = kdf::Builder::default()
-                .try_from_multikey(&mk2)
+        for codec in KEY_GEN_CODECS {
+            let mut rng = rand::rngs::OsRng::default();
+            let mk1 = Builder::new_from_random_bytes(codec, &mut rng)
                 .unwrap()
+                .with_comment("test key")
                 .try_build()
                 .unwrap();
-            let ciphermk = cipher::Builder::default()
-                .try_from_multikey(&mk2)
+
+            let attr = mk1.attr_view().unwrap();
+            assert!(!attr.is_encrypted());
+            assert!(!attr.is_public_key());
+            assert!(attr.is_secret_key());
+            let kd = mk1.data_view().unwrap();
+            assert!(kd.key_bytes().is_ok());
+            assert!(kd.secret_bytes().is_ok());
+
+            let mk2 = {
+                let kdfmk = kdf::Builder::new(Codec::BcryptPbkdf)
+                    .with_random_salt(bcrypt::SALT_LENGTH, &mut rng)
+                    .with_rounds(10)
+                    .try_build()
+                    .unwrap();
+                let ciphermk = cipher::Builder::new(Codec::Chacha20Poly1305)
+                    .with_random_nonce(chacha20::NONCE_LENGTH, &mut rng)
+                    .try_build()
+                    .unwrap();
+                // get the kdf view on the cipher multikey so we can generate a
+                // new cipher multikey with the same parameters and the generated key
+                let kdf = ciphermk.kdf_view(&kdfmk).unwrap();
+                // derive a key from the passphrase and add it to the cipher multikey
+                let ciphermk = kdf
+                    .derive_key(b"for great justice, move every zig!")
+                    .unwrap();
+                // get the cipher view on the unencrypted ed25519 secret key so
+                // that we can create a new ed25519 secret key with an encrypted
+                // key and the kdf and cipher attributes and data
+                let cipher = mk1.cipher_view(&ciphermk).unwrap();
+                // encrypt the multikey using the cipher
+                let mk = cipher.encrypt().unwrap();
+                mk
+            };
+
+            let attr = mk2.attr_view().unwrap();
+            assert_eq!(true, attr.is_encrypted());
+            assert_eq!(false, attr.is_public_key());
+            assert_eq!(true, attr.is_secret_key());
+            let kd = mk2.data_view().unwrap();
+            assert!(kd.key_bytes().is_ok());
+            assert!(kd.secret_bytes().is_err()); // encrypted key
+
+            let mk3 = {
+                let kdfmk = kdf::Builder::default()
+                    .try_from_multikey(&mk2)
+                    .unwrap()
+                    .try_build()
+                    .unwrap();
+                let ciphermk = cipher::Builder::default()
+                    .try_from_multikey(&mk2)
+                    .unwrap()
+                    .try_build()
+                    .unwrap();
+                // get the kdf view
+                let kdf = ciphermk.kdf_view(&kdfmk).unwrap();
+                // derive a key from the passphrase and add it to the cipher multikey
+                let ciphermk = kdf
+                    .derive_key(b"for great justice, move every zig!")
+                    .unwrap();
+                // get the cipher view
+                let cipher = mk2.cipher_view(&ciphermk).unwrap();
+                // decrypt the multikey using the cipher
+                let mk = cipher.decrypt().unwrap();
+                mk
+            };
+
+            let attr = mk3.attr_view().unwrap();
+            assert_eq!(false, attr.is_encrypted());
+            assert_eq!(false, attr.is_public_key());
+            assert_eq!(true, attr.is_secret_key());
+            let kd = mk3.data_view().unwrap();
+            assert!(kd.key_bytes().is_ok());
+            assert!(kd.secret_bytes().is_ok());
+
+            // ensure the round trip worked
+            assert_eq!(mk1, mk3);
+        }
+    }
+
+    #[test]
+    fn test_signing_detached_roundtrip() {
+        for codec in KEY_GEN_CODECS {
+            let mut rng = rand::rngs::OsRng::default();
+            let mk = Builder::new_from_random_bytes(codec, &mut rng)
                 .unwrap()
+                .with_comment("test key")
                 .try_build()
                 .unwrap();
-            // get the kdf view
-            let kdf = ciphermk.kdf_view(&kdfmk).unwrap();
-            // derive a key from the passphrase and add it to the cipher multikey
-            let ciphermk = kdf
-                .derive_key(b"for great justice, move every zig!")
+
+            let attr = mk.attr_view().unwrap();
+            assert!(!attr.is_encrypted());
+            assert!(!attr.is_public_key());
+            assert!(attr.is_secret_key());
+            let kd = mk.data_view().unwrap();
+            assert!(kd.key_bytes().is_ok());
+            assert!(kd.secret_bytes().is_ok());
+            let conv = mk.conv_view().unwrap();
+            let pk = EncodedMultikey::new(Base::Base16Lower, conv.to_public_key().unwrap());
+            println!("{} pubkey: {}", codec, pk.to_string());
+
+            let msg = b"for great justice, move every zig!";
+
+            let signmk = mk.sign_view().unwrap();
+            let signature = if codec == Codec::Bls12381G1Priv || codec == Codec::Bls12381G2Priv {
+                signmk.sign(msg.as_slice(), false, Some(2_u8)).unwrap()
+            } else {
+                signmk.sign(msg.as_slice(), false, None).unwrap()
+            };
+            let sig = EncodedMultisig::new(Base::Base16Lower, signature.clone());
+            println!("signaure: {}", sig.to_string());
+
+            let verifymk = mk.verify_view().unwrap();
+            assert!(verifymk.verify(&signature, Some(msg.as_slice())).is_ok());
+        }
+    }
+
+    #[test]
+    fn test_signing_merged_roundtrip() {
+        for codec in KEY_GEN_CODECS {
+            let mut rng = rand::rngs::OsRng::default();
+            let mk = Builder::new_from_random_bytes(codec, &mut rng)
+                .unwrap()
+                .with_comment("test key")
+                .try_build()
                 .unwrap();
-            // get the cipher view
-            let cipher = mk2.cipher_view(&ciphermk).unwrap();
-            // decrypt the multikey using the cipher
-            let mk = cipher.decrypt().unwrap();
-            mk
-        };
 
-        let attr = mk3.attr_view().unwrap();
-        assert_eq!(false, attr.is_encrypted());
-        assert_eq!(false, attr.is_public_key());
-        assert_eq!(true, attr.is_secret_key());
-        let kd = mk3.data_view().unwrap();
-        assert!(kd.key_bytes().is_ok());
-        assert!(kd.secret_bytes().is_ok());
+            let attr = mk.attr_view().unwrap();
+            assert!(!attr.is_encrypted());
+            assert!(!attr.is_public_key());
+            assert!(attr.is_secret_key());
+            let kd = mk.data_view().unwrap();
+            assert!(kd.key_bytes().is_ok());
+            assert!(kd.secret_bytes().is_ok());
 
-        // ensure the round trip worked
-        assert_eq!(mk1, mk3);
-    }
+            let msg = hex::decode("8bb78be51ac7cc98f44e38947ff8a128764ec039b89687a790dfa8444ba97682")
+                .unwrap();
 
-    #[test]
-    fn test_ed25519_signing_detached_roundtrip() {
-        let mut rng = rand::rngs::OsRng::default();
-        let mk = Builder::new_from_random_bytes(Codec::Ed25519Priv, &mut rng)
-            .unwrap()
-            .with_comment("test key")
-            .try_build()
-            .unwrap();
+            let signmk = mk.sign_view().unwrap();
+            let signature = if codec == Codec::Bls12381G1Priv || codec == Codec::Bls12381G2Priv {
+                signmk.sign(&msg, true, Some(2_u8)).unwrap()
+            } else {
+                signmk.sign(&msg, true, None).unwrap()
+            };
 
-        let attr = mk.attr_view().unwrap();
-        assert!(!attr.is_encrypted());
-        assert!(!attr.is_public_key());
-        assert!(attr.is_secret_key());
-        let kd = mk.data_view().unwrap();
-        assert!(kd.key_bytes().is_ok());
-        assert!(kd.secret_bytes().is_ok());
-        let conv = mk.conv_view().unwrap();
-        let pk = EncodedMultikey::new(Base::Base16Lower, conv.to_public_key().unwrap());
-        println!("ed25519 pubkey: {}", pk.to_string());
+            // make sure the message is stored correctly in the signature
+            assert_eq!(signature.message, msg);
 
-        let msg = "for great justice, move every zig!";
-
-        let signmk = mk.sign_view().unwrap();
-        let signature = signmk.sign(msg.as_bytes(), false, None).unwrap();
-        let sig = EncodedMultisig::new(Base::Base16Lower, signature.clone());
-        println!("signaure: {}", sig.to_string());
-
-        let verifymk = mk.verify_view().unwrap();
-        assert!(verifymk.verify(&signature, Some(msg.as_bytes())).is_ok());
-    }
-
-    #[test]
-    fn test_ed25519_signing_merged_roundtrip() {
-        let mut rng = rand::rngs::OsRng::default();
-        let mk = Builder::new_from_random_bytes(Codec::Ed25519Priv, &mut rng)
-            .unwrap()
-            .with_comment("test key")
-            .try_build()
-            .unwrap();
-
-        let attr = mk.attr_view().unwrap();
-        assert!(!attr.is_encrypted());
-        assert!(!attr.is_public_key());
-        assert!(attr.is_secret_key());
-        let kd = mk.data_view().unwrap();
-        assert!(kd.key_bytes().is_ok());
-        assert!(kd.secret_bytes().is_ok());
-
-        let msg = hex::decode("8bb78be51ac7cc98f44e38947ff8a128764ec039b89687a790dfa8444ba97682")
-            .unwrap();
-
-        let signmk = mk.sign_view().unwrap();
-        let signature = signmk.sign(msg.as_slice(), true, None).unwrap();
-
-        // make sure the message is stored correctly in the signature
-        assert_eq!(signature.message, msg);
-
-        let verifymk = mk.verify_view().unwrap();
-        assert!(verifymk.verify(&signature, None).is_ok());
-    }
-
-    #[test]
-    fn test_secp256k1_signing_detached_roundtrip() {
-        let mut rng = rand::rngs::OsRng::default();
-        let mk = Builder::new_from_random_bytes(Codec::Secp256K1Priv, &mut rng)
-            .unwrap()
-            .with_comment("test key")
-            .try_build()
-            .unwrap();
-
-        let attr = mk.attr_view().unwrap();
-        assert!(!attr.is_encrypted());
-        assert!(!attr.is_public_key());
-        assert!(attr.is_secret_key());
-        let kd = mk.data_view().unwrap();
-        assert!(kd.key_bytes().is_ok());
-        assert!(kd.secret_bytes().is_ok());
-
-        let msg = hex::decode("8bb78be51ac7cc98f44e38947ff8a128764ec039b89687a790dfa8444ba97682")
-            .unwrap();
-
-        let signmk = mk.sign_view().unwrap();
-        let signature = signmk.sign(msg.as_slice(), false, None).unwrap();
-
-        let verifymk = mk.verify_view().unwrap();
-        assert!(verifymk.verify(&signature, Some(&msg)).is_ok());
-    }
-
-    #[test]
-    fn test_secp256k1_signing_merged_roundtrip() {
-        let mut rng = rand::rngs::OsRng::default();
-        let mk = Builder::new_from_random_bytes(Codec::Secp256K1Priv, &mut rng)
-            .unwrap()
-            .with_comment("test key")
-            .try_build()
-            .unwrap();
-
-        let attr = mk.attr_view().unwrap();
-        assert!(!attr.is_encrypted());
-        assert!(!attr.is_public_key());
-        assert!(attr.is_secret_key());
-        let kd = mk.data_view().unwrap();
-        assert!(kd.key_bytes().is_ok());
-        assert!(kd.secret_bytes().is_ok());
-
-        let msg = hex::decode("8bb78be51ac7cc98f44e38947ff8a128764ec039b89687a790dfa8444ba97682")
-            .unwrap();
-
-        let signmk = mk.sign_view().unwrap();
-        let signature = signmk.sign(msg.as_slice(), true, None).unwrap();
-
-        // make sure the message is stored correctly in the signature
-        assert_eq!(signature.message, msg);
-
-        let verifymk = mk.verify_view().unwrap();
-        assert!(verifymk.verify(&signature, None).is_ok());
-    }
-
-    #[test]
-    fn test_bls_signing_detached_roundtrip() {
-        let mut rng = rand::rngs::OsRng::default();
-        let mk = Builder::new_from_random_bytes(Codec::Bls12381G1Priv, &mut rng)
-            .unwrap()
-            .with_comment("test key")
-            .try_build()
-            .unwrap();
-
-        let attr = mk.attr_view().unwrap();
-        assert!(!attr.is_encrypted());
-        assert!(!attr.is_public_key());
-        assert!(attr.is_secret_key());
-        let kd = mk.data_view().unwrap();
-        assert!(kd.key_bytes().is_ok());
-        assert!(kd.secret_bytes().is_ok());
-
-        let msg = hex::decode("8bb78be51ac7cc98f44e38947ff8a128764ec039b89687a790dfa8444ba97682")
-            .unwrap();
-
-        let signmk = mk.sign_view().unwrap();
-        let signature = signmk.sign(msg.as_slice(), false, Some(2_u8)).unwrap();
-
-        let verifymk = mk.verify_view().unwrap();
-        assert!(verifymk.verify(&signature, Some(&msg)).is_ok());
-    }
-
-    #[test]
-    fn test_bls_signing_merged_roundtrip() {
-        let mut rng = rand::rngs::OsRng::default();
-        let mk = Builder::new_from_random_bytes(Codec::Bls12381G2Priv, &mut rng)
-            .unwrap()
-            .with_comment("test key")
-            .try_build()
-            .unwrap();
-
-        let attr = mk.attr_view().unwrap();
-        assert!(!attr.is_encrypted());
-        assert!(!attr.is_public_key());
-        assert!(attr.is_secret_key());
-        let kd = mk.data_view().unwrap();
-        assert!(kd.key_bytes().is_ok());
-        assert!(kd.secret_bytes().is_ok());
-
-        let msg = hex::decode("8bb78be51ac7cc98f44e38947ff8a128764ec039b89687a790dfa8444ba97682")
-            .unwrap();
-
-        let signmk = mk.sign_view().unwrap();
-        let signature = signmk.sign(msg.as_slice(), true, Some(2_u8)).unwrap();
-
-        // make sure the message is stored correctly in the signature
-        assert_eq!(signature.message, msg);
-
-        let verifymk = mk.verify_view().unwrap();
-        assert!(verifymk.verify(&signature, None).is_ok());
+            let verifymk = mk.verify_view().unwrap();
+            assert!(verifymk.verify(&signature, None).is_ok());
+        }
     }
 
     #[test]
@@ -1356,90 +1183,6 @@ mod tests {
     }
 
     #[test]
-    fn test_ed25519_ssh_key_roundtrip() {
-        let mut rng = rand::rngs::OsRng::default();
-        let sk1 = Builder::new_from_random_bytes(Codec::Ed25519Priv, &mut rng)
-            .unwrap()
-            .with_comment("test key")
-            .try_build()
-            .unwrap();
-        let cv = sk1.conv_view().unwrap();
-        let public_key = cv.to_ssh_public_key().unwrap();
-        let private_key = cv.to_ssh_private_key().unwrap();
-
-        let pk1 = cv.to_public_key().unwrap();
-        let cv = pk1.conv_view().unwrap();
-        assert_eq!(public_key, cv.to_ssh_public_key().unwrap());
-
-        let sk2 = Builder::new_from_ssh_private_key(&private_key)
-            .unwrap()
-            .try_build()
-            .unwrap();
-        assert_eq!(sk1, sk2);
-        let pk2 = Builder::new_from_ssh_public_key(&public_key)
-            .unwrap()
-            .try_build()
-            .unwrap();
-        assert_eq!(pk1, pk2);
-    }
-
-    #[test]
-    fn test_secp256k1_ssh_key_roundtrip() {
-        let mut rng = rand::rngs::OsRng::default();
-        let sk1 = Builder::new_from_random_bytes(Codec::Secp256K1Priv, &mut rng)
-            .unwrap()
-            .with_comment("test key")
-            .try_build()
-            .unwrap();
-        let cv = sk1.conv_view().unwrap();
-        let public_key = cv.to_ssh_public_key().unwrap();
-        let private_key = cv.to_ssh_private_key().unwrap();
-
-        let pk1 = cv.to_public_key().unwrap();
-        let cv = pk1.conv_view().unwrap();
-        assert_eq!(public_key, cv.to_ssh_public_key().unwrap());
-
-        let sk2 = Builder::new_from_ssh_private_key(&private_key)
-            .unwrap()
-            .try_build()
-            .unwrap();
-        assert_eq!(sk1, sk2);
-        let pk2 = Builder::new_from_ssh_public_key(&public_key)
-            .unwrap()
-            .try_build()
-            .unwrap();
-        assert_eq!(pk1, pk2);
-    }
-
-    #[test]
-    fn test_bls_ssh_key_roundtrip() {
-        let mut rng = rand::rngs::OsRng::default();
-        let sk1 = Builder::new_from_random_bytes(Codec::Bls12381G1Priv, &mut rng)
-            .unwrap()
-            .with_comment("test key")
-            .try_build()
-            .unwrap();
-        let cv = sk1.conv_view().unwrap();
-        let public_key = cv.to_ssh_public_key().unwrap();
-        let private_key = cv.to_ssh_private_key().unwrap();
-
-        let pk1 = cv.to_public_key().unwrap();
-        let cv = pk1.conv_view().unwrap();
-        assert_eq!(public_key, cv.to_ssh_public_key().unwrap());
-
-        let sk2 = Builder::new_from_ssh_private_key(&private_key)
-            .unwrap()
-            .try_build()
-            .unwrap();
-        assert_eq!(sk1, sk2);
-        let pk2 = Builder::new_from_ssh_public_key(&public_key)
-            .unwrap()
-            .try_build()
-            .unwrap();
-        assert_eq!(pk1, pk2);
-    }
-
-    #[test]
     fn test_bls_share_ssh_key_roundtrip() {
         let mut rng = rand::rngs::OsRng::default();
         let mk = Builder::new_from_random_bytes(Codec::Bls12381G1Priv, &mut rng)
@@ -1474,10 +1217,10 @@ mod tests {
     #[test]
     fn test_from_ssh_pubkey() {
         let mut rng = rand::rngs::OsRng::default();
-        let kp = ssh_key::private::KeypairData::Ed25519(ssh_key::private::Ed25519Keypair::random(
+        let kp = KeypairData::Ed25519(Ed25519Keypair::random(
             &mut rng,
         ));
-        let sk = ssh_key::private::PrivateKey::new(kp, "test key").unwrap();
+        let sk = PrivateKey::new(kp, "test key").unwrap();
 
         // build a multikey from the public key
         let mk = Builder::new_from_ssh_public_key(sk.public_key())
@@ -1499,10 +1242,10 @@ mod tests {
     #[test]
     fn test_from_ssh_privkey() {
         let mut rng = rand::rngs::OsRng::default();
-        let kp = ssh_key::private::KeypairData::Ed25519(ssh_key::private::Ed25519Keypair::random(
+        let kp = KeypairData::Ed25519(Ed25519Keypair::random(
             &mut rng,
         ));
-        let sk = ssh_key::private::PrivateKey::new(kp, "test key").unwrap();
+        let sk = PrivateKey::new(kp, "test key").unwrap();
 
         let mk = Builder::new_from_ssh_private_key(&sk)
             .unwrap()

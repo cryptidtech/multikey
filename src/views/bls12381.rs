@@ -653,7 +653,7 @@ impl<'a> SignView for View<'a> {
 
         // get the signature scheme
         let sig_scheme: SignatureSchemes =
-            multisig::views::bls12381::SchemeTypeId::try_from(scheme)?.into();
+            SchemeTypeId::try_from(scheme)?.into();
 
         match self.mk.codec {
             Codec::Bls12381G1Priv => {
