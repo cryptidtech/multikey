@@ -71,24 +71,26 @@ mod tests {
             mk
         };
 
+        //let v: Vec<u8> = mk.clone().into();
+        //println!("public key: {}", hex::encode(&v));
+
         assert_tokens(
             &mk.compact(),
             &[
-                Token::Tuple { len: 4 },
-                Token::BorrowedBytes(&[0x3a]), // Multikey sigil as varuint
-                Token::BorrowedBytes(&[0xed, 0x01]), // Ed25519Pub codec as varuint
-                Token::BorrowedBytes(&[8, 116, 101, 115, 116, 32, 107, 101, 121]), // "test key"
-                Token::Seq { len: Some(1) },   // attributes array of (varuint, varbytes)
-                Token::Tuple { len: 2 },
-                Token::U8(1), // AttrId::KeyData
                 Token::BorrowedBytes(&[
+                    0x3a,           // Multikey sigil
+                    0xed, 0x01,     // Ed25519 public key as varuint
+                    0x08,           // comment length
+                    0x74, 0x65, 0x73, 0x74, 0x20, 0x6b, 0x65, 0x79, // comment
+                    0x01,           // 1 attribute
+                    0x01,           // key data attributes
+                    0x20,           // 32 bytes in the public key
                     // public key bytes
-                    32, 19, 225, 230, 232, 195, 83, 103, 43, 117, 156, 147, 195, 151, 149, 105, 39,
-                    225, 80, 60, 110, 221, 115, 242, 64, 204, 255, 43, 125, 208, 69, 88, 182,
+                    0x13, 0xe1, 0xe6, 0xe8, 0xc3, 0x53, 0x67, 0x2b,
+                    0x75, 0x9c, 0x93, 0xc3, 0x97, 0x95, 0x69, 0x27,
+                    0xe1, 0x50, 0x3c, 0x6e, 0xdd, 0x73, 0xf2, 0x40,
+                    0xcc, 0xff, 0x2b, 0x7d, 0xd0, 0x45, 0x58, 0xb6
                 ]),
-                Token::TupleEnd,
-                Token::SeqEnd,
-                Token::TupleEnd,
             ],
         );
     }
@@ -200,55 +202,52 @@ mod tests {
             mk
         };
 
+        /*
+        let v: Vec<u8> = mk2.clone().into();
+        print!("mk2: ");
+        for b in &v {
+            print!("0x{:02x}, ", b);
+        }
+        println!("");
+        */
+
         assert_tokens(
             &mk2.compact(),
             &[
-                Token::Tuple { len: 4 },
-                Token::BorrowedBytes(&[0x3a]), // Multikey sigil as varuint
-                Token::BorrowedBytes(&[0x80, 0x26]), // Ed25519Priv codec as varuint
-                Token::BorrowedBytes(&[8, 116, 101, 115, 116, 32, 107, 101, 121]), // "test key"
-                Token::Seq { len: Some(8) },
-                Token::Tuple { len: 2 },
-                Token::U8(0), // AttrId::KeyIsEncrypted
-                Token::BorrowedBytes(&[1, 1]),
-                Token::TupleEnd,
-                Token::Tuple { len: 2 },
-                Token::U8(1), // AttrId::KeyData
                 Token::BorrowedBytes(&[
-                    48, 183, 169, 40, 223, 101, 104, 191, 108, 190, 204, 46, 30, 154, 254, 184, 53,
-                    190, 105, 8, 62, 63, 226, 95, 87, 56, 173, 22, 87, 84, 53, 180, 171, 106, 103,
-                    158, 8, 105, 107, 31, 196, 99, 127, 187, 173, 133, 208, 82, 154,
+                    0x3a,           // Multikey sigil
+                    0x80, 0x26,     // Ed25519 private codec as varuint
+                    0x08,           // comment of 8 bytes
+                    // comment
+                    0x74, 0x65, 0x73, 0x74, 0x20, 0x6b, 0x65, 0x79,
+                    0x08,           // 8 attributes
+                    // key is encrypted
+                    0x00, 0x01, 0x01,
+                    // key data of 48 bytes
+                    0x01, 0x30, 
+                    0xb7, 0xa9, 0x28, 0xdf, 0x65, 0x68, 0xbf, 0x6c,
+                    0xbe, 0xcc, 0x2e, 0x1e, 0x9a, 0xfe, 0xb8, 0x35,
+                    0xbe, 0x69, 0x08, 0x3e, 0x3f, 0xe2, 0x5f, 0x57,
+                    0x38, 0xad, 0x16, 0x57, 0x54, 0x35, 0xb4, 0xab,
+                    0x6a, 0x67, 0x9e, 0x08, 0x69, 0x6b, 0x1f, 0xc4,
+                    0x63, 0x7f, 0xbb, 0xad, 0x85, 0xd0, 0x52, 0x9a,
+                    // cipher codec
+                    0x02, 0x02, 0xa5, 0x01,
+                    // cipher key len (32)
+                    0x03, 0x01, 0x20,
+                    // cipher nonce
+                    0x04, 0x08, 0x71, 0x4e, 0x5a, 0xbf, 0x0f, 0x7b, 0xea, 0xe8,
+                    // kdf codec
+                    0x05, 0x03, 0x8d, 0xa0, 0x03,
+                    // kdf salt
+                    0x06, 0x20, 
+                    0x62, 0x1f, 0x20, 0xcf, 0xda, 0x14, 0x0b, 0xd8,
+                    0xbf, 0x83, 0xa8, 0x99, 0x16, 0x74, 0x28, 0x46,
+                    0x29, 0x29, 0xa4, 0x1e, 0x9b, 0x68, 0xa8, 0x46,
+                    0x7b, 0xfc, 0x24, 0x55, 0xe9, 0xf9, 0x84, 0x06,
+                    // kdf rounds (10)
+                    0x07, 0x01, 0x0a,
                 ]),
-                Token::TupleEnd,
-                Token::Tuple { len: 2 },
-                Token::U8(2), // AttrId::CipherCodec
-                Token::BorrowedBytes(&[2, 165, 1]),
-                Token::TupleEnd,
-                Token::Tuple { len: 2 },
-                Token::U8(3), // AttrId::CipherKeyLen
-                Token::BorrowedBytes(&[1, 32]),
-                Token::TupleEnd,
-                Token::Tuple { len: 2 },
-                Token::U8(4), // AttrId::CipherNonce
-                Token::BorrowedBytes(&[8, 113, 78, 90, 191, 15, 123, 234, 232]),
-                Token::TupleEnd,
-                Token::Tuple { len: 2 },
-                Token::U8(5), // AttrId::KdfCodec
-                Token::BorrowedBytes(&[3, 141, 160, 3]),
-                Token::TupleEnd,
-                Token::Tuple { len: 2 },
-                Token::U8(6), // AttrId::KdfSalt
-                Token::BorrowedBytes(&[
-                    32, 98, 31, 32, 207, 218, 20, 11, 216, 191, 131, 168, 153, 22, 116, 40, 70, 41,
-                    41, 164, 30, 155, 104, 168, 70, 123, 252, 36, 85, 233, 249, 132, 6,
-                ]),
-                Token::TupleEnd,
-                Token::Tuple { len: 2 },
-                Token::U8(7), // AttrId::KdfRounds
-                Token::BorrowedBytes(&[1, 10]),
-                Token::TupleEnd,
-                Token::SeqEnd,
-                Token::TupleEnd,
             ],
         );
     }
@@ -558,13 +557,7 @@ mod tests {
         assert_tokens(
             &mk.compact(),
             &[
-                Token::Tuple { len: 4 },
-                Token::BorrowedBytes(&[0x3a]),
-                Token::BorrowedBytes(&[0x0]),
-                Token::BorrowedBytes(&[0x0]),
-                Token::Seq { len: Some(0), },
-                Token::SeqEnd,
-                Token::TupleEnd,
+                Token::BorrowedBytes(&[0x3a, 0x0, 0x0, 0x0]),
             ]
         );
     }

@@ -60,19 +60,8 @@ impl ser::Serialize for Multikey {
             ss.serialize_field("attributes", &attributes)?;
             ss.end()
         } else {
-            let attributes: Vec<(AttrId, Varbytes)> = self
-                .attributes
-                .iter()
-                .map(|(id, attr)| (*id, Varbytes(attr.to_vec())))
-                .collect();
-
-            (
-                mk::SIGIL,
-                self.codec,
-                Varbytes(self.comment.as_bytes().to_vec()),
-                attributes,
-            )
-                .serialize(serializer)
+            let v: Vec<u8> = self.clone().into();
+            serializer.serialize_bytes(v.as_slice())
         }
     }
 }

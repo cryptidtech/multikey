@@ -203,30 +203,8 @@ impl<'de> Deserialize<'de> for Multikey {
         if deserializer.is_human_readable() {
             deserializer.deserialize_struct(mk::SIGIL.as_str(), FIELDS, MultikeyVisitor)
         } else {
-            let (sigil, codec, comment, attr): (Codec, Codec, Varbytes, Vec<(AttrId, Varbytes)>) =
-                Deserialize::deserialize(deserializer)?;
-
-            if sigil != mk::SIGIL {
-                return Err(Error::custom("deserialized sigil is not a Multikey sigil"));
-            }
-            let comment = String::from_utf8(comment.to_inner())
-                .map_err(|_| Error::custom("failed to decode comment"))?;
-            let mut attributes = Attributes::new();
-            attr.iter()
-                .try_for_each(|(id, attr)| -> Result<(), D::Error> {
-                    let i = *id;
-                    let a: Zeroizing<Vec<u8>> = attr.to_vec().into();
-                    if attributes.insert(i, a).is_some() {
-                        return Err(Error::duplicate_field("duplicate attribute id"));
-                    }
-                    Ok(())
-                })?;
-
-            Ok(Self {
-                codec,
-                comment,
-                attributes,
-            })
+            let b: &'de [u8] = Deserialize::deserialize(deserializer)?;
+            Ok(Self::try_from(b).map_err(|e| Error::custom(e.to_string()))?)
         }
     }
 }
