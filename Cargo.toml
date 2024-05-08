@@ -1,6 +1,6 @@
 [package]
 name = "multikey"
-version = "1.0.1"
+version = "1.0.2"
 edition = "2021"
 authors = ["Dave Grantham <dwg@linuxprogrammer.org>"]
 description = "Multikey self-describing cryptographic key data"
