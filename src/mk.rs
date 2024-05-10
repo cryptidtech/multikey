@@ -23,20 +23,30 @@ use zeroize::Zeroizing;
 pub const KEY_CODECS: [Codec; 4] = [
     Codec::Ed25519Priv,
     /*
+    Codec::LamportSha3256Priv,
+    Codec::LamportSha3384Priv,
+    Codec::LamportSha3512Priv,
     Codec::P256Priv,
     Codec::P384Priv,
     Codec::P521Priv,
     */
     Codec::Secp256K1Priv,
     Codec::Bls12381G1Priv,
-    Codec::Bls12381G2Priv];
+    Codec::Bls12381G2Priv
+];
 
 /// the list of key share codecs supported
 pub const KEY_SHARE_CODECS: [Codec; 4] = [
     Codec::Bls12381G1PubShare,
     Codec::Bls12381G1PrivShare,
     Codec::Bls12381G2PubShare,
-    Codec::Bls12381G2PrivShare];
+    Codec::Bls12381G2PrivShare
+    /*
+    Codec::LamportSha3256PrivShare,
+    Codec::LamportSha3384PrivShare,
+    Codec::LamportSha3512PrivShare,
+    */
+];
 
 /// the multicodec sigil for multikey
 pub const SIGIL: Codec = Codec::Multikey;
@@ -905,12 +915,12 @@ mod tests {
             let mut rng = rand::rngs::OsRng::default();
             let mk = Builder::new_from_random_bytes(codec, &mut rng)
                 .unwrap()
-                .with_base_encoding(Base::Base58Btc)
+                .with_base_encoding(Base::Base32Lower)
                 .with_comment("test key")
                 .try_build_encoded()
                 .unwrap();
             let s = mk.to_string();
-            println!("ed25519: {}", s);
+            println!("{}: {}", codec, s);
             assert_eq!(mk, EncodedMultikey::try_from(s.as_str()).unwrap());
         }
     }

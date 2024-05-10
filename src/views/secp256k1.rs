@@ -307,7 +307,7 @@ impl<'a> SignView for View<'a> {
             .try_sign(msg)
             .map_err(|e| SignError::SigningFailed(e.to_string()))?;
 
-        let mut ms = ms::Builder::new(Codec::Es256K).with_signature_bytes(&signature.to_bytes());
+        let mut ms = ms::Builder::new(Codec::Es256KMsig).with_signature_bytes(&signature.to_bytes());
         if combined {
             ms = ms.with_message_bytes(&msg);
         }
