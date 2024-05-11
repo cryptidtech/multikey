@@ -17,7 +17,8 @@ impl ser::Serialize for Nonce {
             )?;
             ss.end()
         } else {
-            (nonce::SIGIL, Varbytes(self.nonce.clone())).serialize(serializer)
+            let v: Vec<u8> = self.clone().into();
+            serializer.serialize_bytes(v.as_slice())
         }
     }
 }

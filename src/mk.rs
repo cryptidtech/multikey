@@ -1178,8 +1178,9 @@ mod tests {
 
         let signmk = shares[0].sign_view().unwrap();
         let signature = signmk.sign(msg.as_slice(), false, Some(2_u8)).unwrap();
-        let s: Vec<u8> = signature.into();
-        println!("{}", hex::encode(&s));
+        let ms: EncodedMultisig = BaseEncoded::new(Base::Base32Z, signature);
+        let s = ms.to_string();
+        println!("Bls Sig Share: {}", s);
 
         let mut builder = Builder::new(Codec::Bls12381G1Priv).with_comment("test key");
         for share in &shares {

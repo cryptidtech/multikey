@@ -5,7 +5,7 @@ use crate::{
 };
 use core::fmt;
 use multicodec::Codec;
-use multiutil::{EncodedVarbytes, Varbytes};
+use multiutil::EncodedVarbytes;
 use serde::{
     de::{Error, MapAccess, Visitor},
     Deserialize, Deserializer,
@@ -59,14 +59,8 @@ impl<'de> Deserialize<'de> for Nonce {
         if deserializer.is_human_readable() {
             deserializer.deserialize_struct(nonce::SIGIL.as_str(), FIELDS, NonceVisitor)
         } else {
-            let (sigil, nonce): (Codec, Varbytes) = Deserialize::deserialize(deserializer)?;
-
-            if sigil != nonce::SIGIL {
-                return Err(Error::custom("deserialized sigil is not a Nonce sigil"));
-            }
-            let nonce = nonce.to_inner();
-
-            Ok(Self { nonce })
+            let b: &'de [u8] = Deserialize::deserialize(deserializer)?;
+            Ok(Self::try_from(b).map_err(|e| Error::custom(e.to_string()))?)
         }
     }
 }

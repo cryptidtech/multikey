@@ -108,7 +108,7 @@ mod tests {
 
         assert_tokens(
             &pk.readable(),
-            &[Token::BorrowedStr(
+            &[Token::Str(
                 "zVCYiTqf3RfiqqE4RxExy5XEvCWJKnHH4P67PLC1VuAuA1N8X1qQhM3Y3Bp1xmTQ5",
             )],
         );
@@ -137,15 +137,15 @@ mod tests {
                     name: "multikey",
                     len: 3,
                 },
-                Token::BorrowedStr("codec"),
-                Token::BorrowedStr("ed25519-pub"),
-                Token::BorrowedStr("comment"),
-                Token::BorrowedStr("test key"),
-                Token::BorrowedStr("attributes"),
+                Token::Str("codec"),
+                Token::Str("ed25519-pub"),
+                Token::Str("comment"),
+                Token::Str("test key"),
+                Token::Str("attributes"),
                 Token::Seq { len: Some(1) },
                 Token::Tuple { len: 2 },
-                Token::BorrowedStr("key-data"), // AttrId::KeyData
-                Token::BorrowedStr(
+                Token::Str("key-data"), // AttrId::KeyData
+                Token::Str(
                     "f2013e1e6e8c353672b759c93c397956927e1503c6edd73f240ccff2b7dd04558b6",
                 ),
                 Token::TupleEnd,
@@ -305,43 +305,43 @@ mod tests {
                     name: "multikey",
                     len: 3,
                 },
-                Token::BorrowedStr("codec"),
-                Token::BorrowedStr("ed25519-priv"),
-                Token::BorrowedStr("comment"),
-                Token::BorrowedStr("test key"),
-                Token::BorrowedStr("attributes"),
+                Token::Str("codec"),
+                Token::Str("ed25519-priv"),
+                Token::Str("comment"),
+                Token::Str("test key"),
+                Token::Str("attributes"),
                 Token::Seq { len: Some(8) },
                 Token::Tuple { len: 2 },
-                Token::BorrowedStr("key-is-encrypted"),
-                Token::BorrowedStr("f0101"),
+                Token::Str("key-is-encrypted"),
+                Token::Str("f0101"),
                 Token::TupleEnd,
                 Token::Tuple { len: 2 },
-                Token::BorrowedStr("key-data"),
-                Token::BorrowedStr("f30b7a928df6568bf6cbecc2e1e9afeb835be69083e3fe25f5738ad16575435b4ab6a679e08696b1fc4637fbbad85d0529a"),
+                Token::Str("key-data"),
+                Token::Str("f30b7a928df6568bf6cbecc2e1e9afeb835be69083e3fe25f5738ad16575435b4ab6a679e08696b1fc4637fbbad85d0529a"),
                 Token::TupleEnd,
                 Token::Tuple { len: 2 },
-                Token::BorrowedStr("cipher-codec"),
-                Token::BorrowedStr("f02a501"),
+                Token::Str("cipher-codec"),
+                Token::Str("f02a501"),
                 Token::TupleEnd,
                 Token::Tuple { len: 2 },
-                Token::BorrowedStr("cipher-key-len"),
-                Token::BorrowedStr("f0120"),
+                Token::Str("cipher-key-len"),
+                Token::Str("f0120"),
                 Token::TupleEnd,
                 Token::Tuple { len: 2 },
-                Token::BorrowedStr("cipher-nonce"),
-                Token::BorrowedStr("f08714e5abf0f7beae8"),
+                Token::Str("cipher-nonce"),
+                Token::Str("f08714e5abf0f7beae8"),
                 Token::TupleEnd,
                 Token::Tuple { len: 2 },
-                Token::BorrowedStr("kdf-codec"),
-                Token::BorrowedStr("f038da003"),
+                Token::Str("kdf-codec"),
+                Token::Str("f038da003"),
                 Token::TupleEnd,
                 Token::Tuple { len: 2 },
-                Token::BorrowedStr("kdf-salt"),
-                Token::BorrowedStr("f20621f20cfda140bd8bf83a899167428462929a41e9b68a8467bfc2455e9f98406"),
+                Token::Str("kdf-salt"),
+                Token::Str("f20621f20cfda140bd8bf83a899167428462929a41e9b68a8467bfc2455e9f98406"),
                 Token::TupleEnd,
                 Token::Tuple { len: 2 },
-                Token::BorrowedStr("kdf-rounds"),
-                Token::BorrowedStr("f010a"),
+                Token::Str("kdf-rounds"),
+                Token::Str("f010a"),
                 Token::TupleEnd,
                 Token::SeqEnd,
                 Token::StructEnd,
@@ -501,14 +501,13 @@ mod tests {
         assert_tokens(
             &n.compact(),
             &[
-                Token::Tuple { len: 2 },
-                Token::BorrowedBytes(&[0x3b]), // Nonce sigil as varuint
                 Token::BorrowedBytes(&[
-                    // Nonce data as varbytes
-                    32, 118, 137, 82, 114, 197, 206, 92, 12, 114, 181, 236, 84, 148, 78, 173, 115,
-                    148, 130, 248, 112, 72, 219, 191, 193, 59, 135, 48, 8, 179, 29, 89, 149,
+                    59, 32, 118, 137, 82, 114, 197, 206,
+                    92, 12, 114, 181, 236, 84, 148, 78,
+                    173, 115, 148, 130, 248, 112, 72, 219,
+                    191, 193, 59, 135, 48, 8, 179, 29,
+                    89, 149
                 ]),
-                Token::TupleEnd,
             ],
         );
     }
@@ -523,7 +522,7 @@ mod tests {
 
         assert_tokens(
             &n.readable(),
-            &[Token::BorrowedStr(
+            &[Token::Str(
                 "f3b2076895272c5ce5c0c72b5ec54944ead739482f87048dbbfc13b873008b31d5995",
             )],
         );
@@ -542,8 +541,8 @@ mod tests {
                     name: "nonce",
                     len: 1,
                 },
-                Token::BorrowedStr("nonce"),
-                Token::BorrowedStr(
+                Token::Str("nonce"),
+                Token::Str(
                     "f2076895272c5ce5c0c72b5ec54944ead739482f87048dbbfc13b873008b31d5995",
                 ),
                 Token::StructEnd,
@@ -569,11 +568,11 @@ mod tests {
             &mk.readable(),
             &[
                 Token::Struct { name: "multikey", len: 3, },
-                Token::BorrowedStr("codec"),
-                Token::BorrowedStr("identity"),
-                Token::BorrowedStr("comment"),
-                Token::BorrowedStr(""),
-                Token::BorrowedStr("attributes"),
+                Token::Str("codec"),
+                Token::Str("identity"),
+                Token::Str("comment"),
+                Token::Str(""),
+                Token::Str("attributes"),
                 Token::Seq { len: Some(0), },
                 Token::SeqEnd,
                 Token::StructEnd,
@@ -587,7 +586,7 @@ mod tests {
         assert_tokens(
             &mk.readable(),
             &[
-                Token::BorrowedStr("f3a000000"),
+                Token::Str("f3a000000"),
             ]
         );
     }
@@ -598,10 +597,7 @@ mod tests {
         assert_tokens(
             &n.compact(),
             &[
-                Token::Tuple { len: 2 },
-                Token::BorrowedBytes(&[0x3b]),
-                Token::BorrowedBytes(&[0x0]),
-                Token::TupleEnd,
+                Token::BorrowedBytes(&[59, 0]),
             ]
         );
     }
@@ -613,8 +609,8 @@ mod tests {
             &n.readable(),
             &[
                 Token::Struct { name: "nonce", len: 1, },
-                Token::BorrowedStr("nonce"),
-                Token::BorrowedStr("f00"),
+                Token::Str("nonce"),
+                Token::Str("f00"),
                 Token::StructEnd,
             ]
         );
@@ -626,7 +622,7 @@ mod tests {
         assert_tokens(
             &n.readable(),
             &[
-                Token::BorrowedStr("f3b00"),
+                Token::Str("f3b00"),
             ]
         );
     }
