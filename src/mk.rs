@@ -894,7 +894,7 @@ impl Builder {
 mod tests {
     use super::*;
     use crate::{cipher, kdf};
-    //use multisig::EncodedMultisig;
+    use multisig::EncodedMultisig;
 
     #[test]
     fn test_random() {
@@ -1083,7 +1083,6 @@ mod tests {
         }
     }
 
-    /*
     #[test]
     fn test_signing_detached_roundtrip() {
         for codec in KEY_CODECS {
@@ -1156,7 +1155,6 @@ mod tests {
             assert!(verifymk.verify(&signature, None).is_ok());
         }
     }
-    */
 
     #[test]
     fn test_bls_key_combine() {
