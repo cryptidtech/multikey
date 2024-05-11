@@ -1,6 +1,6 @@
 [package]
 name = "multikey"
-version = "1.0.3"
+version = "1.0.4"
 edition = "2021"
 authors = ["Dave Grantham <dwg@linuxprogrammer.org>"]
 description = "Multikey self-describing cryptographic key data"
@@ -18,7 +18,7 @@ ed25519-dalek = { version = "2.1", features = ["rand_core"] }
 elliptic-curve = "0.13"
 hex = "0.4"
 k256 = "0.13"
-multibase = "0.9"
+multibase = { version = "1.0", git = "https://github.com/cryptidtech/rust-multibase.git" }
 multicodec = { version = "1.0", git = "https://github.com/cryptidtech/rust-multicodec.git" }
 multihash = { version = "1.0", git = "https://github.com/cryptidtech/multihash.git" }
 multisig = { version = "1.0", git = "https://github.com/cryptidtech/multisig.git" }
