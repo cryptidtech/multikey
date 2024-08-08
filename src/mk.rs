@@ -32,7 +32,7 @@ pub const KEY_CODECS: [Codec; 4] = [
     */
     Codec::Secp256K1Priv,
     Codec::Bls12381G1Priv,
-    Codec::Bls12381G2Priv
+    Codec::Bls12381G2Priv,
 ];
 
 /// the list of key share codecs supported
@@ -40,12 +40,11 @@ pub const KEY_SHARE_CODECS: [Codec; 4] = [
     Codec::Bls12381G1PubShare,
     Codec::Bls12381G1PrivShare,
     Codec::Bls12381G2PubShare,
-    Codec::Bls12381G2PrivShare
-    /*
-    Codec::LamportSha3256PrivShare,
-    Codec::LamportSha3384PrivShare,
-    Codec::LamportSha3512PrivShare,
-    */
+    Codec::Bls12381G2PrivShare, /*
+                                Codec::LamportSha3256PrivShare,
+                                Codec::LamportSha3384PrivShare,
+                                Codec::LamportSha3512PrivShare,
+                                */
 ];
 
 /// the multicodec sigil for multikey
@@ -1019,7 +1018,7 @@ mod tests {
                     .try_build()
                     .unwrap();
                 let ciphermk = cipher::Builder::new(Codec::Chacha20Poly1305)
-                    .with_random_nonce(chacha20::NONCE_LENGTH, &mut rng)
+                    .with_random_nonce(chacha20::nonce_length(), &mut rng)
                     .try_build()
                     .unwrap();
                 // get the kdf view on the cipher multikey so we can generate a
@@ -1138,8 +1137,9 @@ mod tests {
             assert!(kd.key_bytes().is_ok());
             assert!(kd.secret_bytes().is_ok());
 
-            let msg = hex::decode("8bb78be51ac7cc98f44e38947ff8a128764ec039b89687a790dfa8444ba97682")
-                .unwrap();
+            let msg =
+                hex::decode("8bb78be51ac7cc98f44e38947ff8a128764ec039b89687a790dfa8444ba97682")
+                    .unwrap();
 
             let signmk = mk.sign_view().unwrap();
             let signature = if codec == Codec::Bls12381G1Priv || codec == Codec::Bls12381G2Priv {
@@ -1235,9 +1235,7 @@ mod tests {
     #[test]
     fn test_from_ssh_pubkey() {
         let mut rng = rand::rngs::OsRng::default();
-        let kp = KeypairData::Ed25519(Ed25519Keypair::random(
-            &mut rng,
-        ));
+        let kp = KeypairData::Ed25519(Ed25519Keypair::random(&mut rng));
         let sk = PrivateKey::new(kp, "test key").unwrap();
 
         // build a multikey from the public key
@@ -1260,9 +1258,7 @@ mod tests {
     #[test]
     fn test_from_ssh_privkey() {
         let mut rng = rand::rngs::OsRng::default();
-        let kp = KeypairData::Ed25519(Ed25519Keypair::random(
-            &mut rng,
-        ));
+        let kp = KeypairData::Ed25519(Ed25519Keypair::random(&mut rng));
         let sk = PrivateKey::new(kp, "test key").unwrap();
 
         let mk = Builder::new_from_ssh_private_key(&sk)

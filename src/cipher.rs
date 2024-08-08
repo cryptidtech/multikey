@@ -94,7 +94,8 @@ mod tests {
             .try_build()
             .unwrap();
 
-        let nonce = hex::decode("00b61a43d4d1e8d7").unwrap();
+        // ChaCha needs 12 bytes of nonce iaw RFC8439
+        let nonce = hex::decode("00b61a43d4d1e8d700b61a43").unwrap();
         // create a cipher multikey
         let ciphermk = Builder::new(Codec::Chacha20Poly1305)
             .with_nonce(&nonce)
@@ -110,7 +111,7 @@ mod tests {
             .unwrap();
 
         // generate a random secret key
-        let mut rng = rand::rngs::OsRng::default();
+        let mut rng = rand::rngs::OsRng;
         let mk = mk::Builder::new_from_random_bytes(Codec::Ed25519Priv, &mut rng)
             .unwrap()
             .with_comment("test key")
