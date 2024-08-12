@@ -10,6 +10,7 @@ license = "Apache-2.0"
 
 [features]
 default = ["serde"]
+ssh = ["ssh-key"]
 
 [dependencies]
 bcrypt-pbkdf = "0.10"
@@ -26,14 +27,21 @@ multitrait = { version = "1.0", git = "https://github.com/cryptidtech/multitrait
 multiutil = { version = "1.0", git = "https://github.com/cryptidtech/multiutil.git" }
 rand = "0.8"
 sec1 = "0.7"
-serde = { version = "1.0", default-features = false, features = ["alloc", "derive"], optional = true }
+serde = { version = "1.0", default-features = false, features = [
+  "alloc",
+  "derive",
+], optional = true }
 chacha20 = "0.9"
 poly1305 = "0.8"
-ssh-key = { version = "0.6", features = ["alloc", "crypto", "ed25519"]}
+ssh-key = { version = "0.6", features = [
+  "alloc",
+  "crypto",
+  "ed25519",
+], optional = true }
 ssh-encoding = "0.2"
 thiserror = "1.0"
 typenum = "1.17"
-unsigned-varint = { version = "0.8", features = ["std"]}
+unsigned-varint = { version = "0.8", features = ["std"] }
 vsss-rs = "3.4"
 zeroize = "1.7"
 
