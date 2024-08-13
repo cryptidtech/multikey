@@ -11,6 +11,7 @@ use multicodec::Codec;
 use multitrait::{Null, TryDecodeFrom};
 use multiutil::{BaseEncoded, CodecInfo, EncodingInfo, Varbytes, Varuint};
 use rand::{CryptoRng, RngCore};
+#[cfg(feature = "ssh")]
 use ssh_key::{
     private::{EcdsaKeypair, Ed25519Keypair, KeypairData},
     public::{EcdsaPublicKey, KeyData},
@@ -97,7 +98,7 @@ impl Into<Vec<u8>> for Multikey {
         // add in the sigil
         v.append(&mut SIGIL.into());
         // add in the key codec
-        v.append(&mut self.codec.clone().into());
+        v.append(&mut self.codec.into());
         // add in the comment
         v.append(&mut Varbytes(self.comment.as_bytes().to_vec()).into());
         // add in the number of codec-specific attributes
@@ -401,17 +402,20 @@ impl Builder {
         rng: &mut (impl RngCore + CryptoRng),
     ) -> Result<Self, Error> {
         let key_bytes = match codec {
-            Codec::Ed25519Priv => Ed25519Keypair::random(rng).private.to_bytes().to_vec(),
+            Codec::Ed25519Priv => ed25519_dalek::SigningKey::generate(rng).to_bytes().to_vec(),
+            #[cfg(feature = "ssh")]
             Codec::P256Priv => EcdsaKeypair::random(rng, EcdsaCurve::NistP256)
-                .map_err(|e| ConversionsError::SshKey(e))?
+                .map_err(ConversionsError::SshKey)?
                 .private_key_bytes()
                 .to_vec(),
+            #[cfg(feature = "ssh")]
             Codec::P384Priv => EcdsaKeypair::random(rng, EcdsaCurve::NistP384)
-                .map_err(|e| ConversionsError::SshKey(e))?
+                .map_err(ConversionsError::SshKey)?
                 .private_key_bytes()
                 .to_vec(),
+            #[cfg(feature = "ssh")]
             Codec::P521Priv => EcdsaKeypair::random(rng, EcdsaCurve::NistP521)
-                .map_err(|e| ConversionsError::SshKey(e))?
+                .map_err(ConversionsError::SshKey)?
                 .private_key_bytes()
                 .to_vec(),
             Codec::Secp256K1Priv => k256::SecretKey::random(rng).to_bytes().to_vec(),
@@ -435,6 +439,7 @@ impl Builder {
     }
 
     /// new builder from ssh_key::PublicKey source
+    #[cfg(feature = "ssh")]
     pub fn new_from_ssh_public_key(sshkey: &PublicKey) -> Result<Self, Error> {
         use ssh_key::Algorithm::*;
         match sshkey.algorithm() {
@@ -617,6 +622,7 @@ impl Builder {
     }
 
     /// new builder from ssh_key::PrivateKey source
+    #[cfg(feature = "ssh")]
     pub fn new_from_ssh_private_key(sshkey: &PrivateKey) -> Result<Self, Error> {
         use ssh_key::Algorithm::*;
         match sshkey.algorithm() {
@@ -911,7 +917,7 @@ mod tests {
     #[test]
     fn test_encoded_random() {
         for codec in KEY_CODECS {
-            let mut rng = rand::rngs::OsRng::default();
+            let mut rng = rand::rngs::OsRng;
             let mk = Builder::new_from_random_bytes(codec, &mut rng)
                 .unwrap()
                 .with_base_encoding(Base::Base32Lower)
@@ -924,6 +930,7 @@ mod tests {
         }
     }
 
+    #[cfg(feature = "ssh")]
     #[test]
     fn test_random_public_ssh_key_roundtrip() {
         for codec in KEY_CODECS {
@@ -944,6 +951,7 @@ mod tests {
         }
     }
 
+    #[cfg(feature = "ssh")]
     #[test]
     fn test_random_private_ssh_key_roundtrip() {
         for codec in KEY_CODECS {
@@ -963,6 +971,7 @@ mod tests {
         }
     }
 
+    #[cfg(feature = "ssh")]
     #[test]
     fn test_ssh_key_roundtrip() {
         for codec in KEY_CODECS {
@@ -1200,6 +1209,7 @@ mod tests {
         assert_eq!(mk1, mk3);
     }
 
+    #[cfg(feature = "ssh")]
     #[test]
     fn test_bls_share_ssh_key_roundtrip() {
         let mut rng = rand::rngs::OsRng::default();
@@ -1232,9 +1242,10 @@ mod tests {
         assert_eq!(pk1, pk2);
     }
 
+    #[cfg(feature = "ssh")]
     #[test]
     fn test_from_ssh_pubkey() {
-        let mut rng = rand::rngs::OsRng::default();
+        let mut rng = rand::rngs::OsRng;
         let kp = KeypairData::Ed25519(Ed25519Keypair::random(&mut rng));
         let sk = PrivateKey::new(kp, "test key").unwrap();
 
@@ -1247,14 +1258,15 @@ mod tests {
         let attr = mk.attr_view().unwrap();
         assert_eq!(mk.codec, Codec::Ed25519Pub);
         assert_eq!(mk.comment, "test key".to_string());
-        assert_eq!(false, attr.is_encrypted());
-        assert_eq!(true, attr.is_public_key());
-        assert_eq!(false, attr.is_secret_key());
+        assert!(!attr.is_encrypted());
+        assert!(attr.is_public_key());
+        assert!(!attr.is_secret_key());
         let kd = mk.data_view().unwrap();
         assert!(kd.key_bytes().is_ok());
         assert!(kd.secret_bytes().is_err()); // public key
     }
 
+    #[cfg(feature = "ssh")]
     #[test]
     fn test_from_ssh_privkey() {
         let mut rng = rand::rngs::OsRng::default();

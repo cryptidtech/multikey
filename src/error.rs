@@ -102,6 +102,7 @@ pub enum AttributesError {
 #[non_exhaustive]
 pub enum ConversionsError {
     /// Ssh key error
+    #[cfg(feature = "ssh")]
     #[error(transparent)]
     SshKey(#[from] ssh_key::Error),
     /// Ssh key label error
