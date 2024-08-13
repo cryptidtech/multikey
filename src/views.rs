@@ -101,8 +101,10 @@ pub trait ConvView {
     /// a key pair. this always fails for symmetric encryption codecs.
     fn to_public_key(&self) -> Result<Multikey, Error>;
     /// try to convert a Multikey to an ssh_key::PublicKey
+    #[cfg(feature = "ssh")]
     fn to_ssh_public_key(&self) -> Result<ssh_key::PublicKey, Error>;
     /// try to convert a Multikey to an ssh_key::PrivateKey
+    #[cfg(feature = "ssh")]
     fn to_ssh_private_key(&self) -> Result<ssh_key::PrivateKey, Error>;
 }
 

@@ -185,6 +185,7 @@ impl<'a> ConvView for View<'a> {
     }
 
     /// try to convert a Multikey to an ssh_key::PublicKey
+    #[cfg(feature = "ssh")]
     fn to_ssh_public_key(&self) -> Result<ssh_key::PublicKey, Error> {
         let mut pk = self.mk.clone();
         if self.is_secret_key() {
@@ -211,6 +212,7 @@ impl<'a> ConvView for View<'a> {
     }
 
     /// try to convert a Multikey to an ssh_key::PrivateKey
+    #[cfg(feature = "ssh")]
     fn to_ssh_private_key(&self) -> Result<ssh_key::PrivateKey, Error> {
         let secret_bytes = {
             let kd = self.mk.data_view()?;

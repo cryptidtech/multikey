@@ -10,7 +10,7 @@ license = "Apache-2.0"
 
 [features]
 default = ["serde"]
-ssh = ["ssh-key"]
+ssh = ["ssh-key", "ssh-encoding", "multisig/ssh"]
 
 [dependencies]
 bcrypt-pbkdf = "0.10"
@@ -33,17 +33,23 @@ serde = { version = "1.0", default-features = false, features = [
 ], optional = true }
 chacha20 = "0.9"
 poly1305 = "0.8"
-ssh-key = { version = "0.6", features = [
-  "alloc",
-  "crypto",
-  "ed25519",
-], optional = true }
-ssh-encoding = "0.2"
 thiserror = "1.0"
 typenum = "1.17"
 unsigned-varint = { version = "0.8", features = ["std"] }
 vsss-rs = "3.4"
 zeroize = "1.7"
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+ssh-key = { version = "0.6", features = [
+  "alloc",
+  "crypto",
+  "ed25519",
+], optional = true }
+ssh-encoding = { version = "0.2", optional = true }
+
+[patch.'https://github.com/cryptidtech/multisig']
+multisig = { git = "https://github.com/DougAnderson444/multisig.git", branch = "wasm32" }
+
 
 [dev-dependencies]
 serde_test = "1.0"

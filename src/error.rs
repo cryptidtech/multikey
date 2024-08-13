@@ -102,12 +102,15 @@ pub enum AttributesError {
 #[non_exhaustive]
 pub enum ConversionsError {
     /// Ssh key error
+    #[cfg(feature = "ssh")]
     #[error(transparent)]
     SshKey(#[from] ssh_key::Error),
     /// Ssh key label error
+    #[cfg(feature = "ssh")]
     #[error(transparent)]
     SshKeyLabel(#[from] ssh_encoding::LabelError),
     /// Ssh encoding error
+    #[cfg(feature = "ssh")]
     #[error(transparent)]
     SshEncoding(#[from] ssh_encoding::Error),
     /// Public key operation failure
