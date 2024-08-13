@@ -402,21 +402,20 @@ impl Builder {
         rng: &mut (impl RngCore + CryptoRng),
     ) -> Result<Self, Error> {
         let key_bytes = match codec {
-            #[cfg(feature = "ssh")]
-            Codec::Ed25519Priv => Ed25519Keypair::random(rng).private.to_bytes().to_vec(),
+            Codec::Ed25519Priv => ed25519_dalek::SigningKey::generate(rng).to_bytes().to_vec(),
             #[cfg(feature = "ssh")]
             Codec::P256Priv => EcdsaKeypair::random(rng, EcdsaCurve::NistP256)
-                .map_err(|e| ConversionsError::SshKey(e))?
+                .map_err(ConversionsError::SshKey)?
                 .private_key_bytes()
                 .to_vec(),
             #[cfg(feature = "ssh")]
             Codec::P384Priv => EcdsaKeypair::random(rng, EcdsaCurve::NistP384)
-                .map_err(|e| ConversionsError::SshKey(e))?
+                .map_err(ConversionsError::SshKey)?
                 .private_key_bytes()
                 .to_vec(),
             #[cfg(feature = "ssh")]
             Codec::P521Priv => EcdsaKeypair::random(rng, EcdsaCurve::NistP521)
-                .map_err(|e| ConversionsError::SshKey(e))?
+                .map_err(ConversionsError::SshKey)?
                 .private_key_bytes()
                 .to_vec(),
             Codec::Secp256K1Priv => k256::SecretKey::random(rng).to_bytes().to_vec(),
