@@ -22,7 +22,7 @@ k256 = "0.13"
 multibase = { version = "1.0", git = "https://github.com/cryptidtech/rust-multibase.git" }
 multicodec = { version = "1.0", git = "https://github.com/cryptidtech/rust-multicodec.git" }
 multihash = { version = "1.0", git = "https://github.com/cryptidtech/multihash.git" }
-multisig = { version = "1.0", git = "https://github.com/cryptidtech/multisig.git" }
+multisig = { version = "^1.0", git = "https://github.com/DougAnderson444/multisig.git", branch = "wasm32" }
 multitrait = { version = "1.0", git = "https://github.com/cryptidtech/multitrait.git" }
 multiutil = { version = "1.0", git = "https://github.com/cryptidtech/multiutil.git" }
 rand = "0.8"
@@ -46,10 +46,6 @@ ssh-key = { version = "0.6", features = [
   "ed25519",
 ], optional = true }
 ssh-encoding = { version = "0.2", optional = true }
-
-[patch.'https://github.com/cryptidtech/multisig']
-multisig = { git = "https://github.com/DougAnderson444/multisig.git", branch = "wasm32" }
-
 
 [dev-dependencies]
 serde_test = "1.0"
