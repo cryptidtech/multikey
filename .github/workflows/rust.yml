@@ -56,7 +56,7 @@ jobs:
           with:
             toolchain: ${{ matrix.rust }}
             target: ${{ matrix.target }}
-        - run: cargo build --target ${{ matrix.target }}
+        - run: cargo build --target ${{ matrix.target }} --features wasm
 
   test:
       runs-on: ubuntu-latest
