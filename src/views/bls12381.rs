@@ -19,16 +19,15 @@ use multihash::{mh, Multihash};
 use multisig::{ms, views::bls12381::SchemeTypeId, Multisig, Views as SigViews};
 use multitrait::TryDecodeFrom;
 use multiutil::{Varbytes, Varuint};
-#[cfg(feature = "ssh")]
 use ssh_encoding::{Decode, Encode};
 use std::{array::TryFromSliceError, collections::BTreeMap};
 use zeroize::Zeroizing;
 
 /// the RFC 4251 algorithm name for SSH compatibility
-pub const ALGORITHM_NAME_G1: &'static str = "bls12_381-g1@multikey";
-pub const ALGORITHM_NAME_G1_SHARE: &'static str = "bls12_381-g1-share@multikey";
-pub const ALGORITHM_NAME_G2: &'static str = "bls12_381-g2@multikey";
-pub const ALGORITHM_NAME_G2_SHARE: &'static str = "bls12_381-g2-share@multikey";
+pub const ALGORITHM_NAME_G1: &str = "bls12_381-g1@multikey";
+pub const ALGORITHM_NAME_G1_SHARE: &str = "bls12_381-g1-share@multikey";
+pub const ALGORITHM_NAME_G2: &str = "bls12_381-g2@multikey";
+pub const ALGORITHM_NAME_G2_SHARE: &str = "bls12_381-g2-share@multikey";
 
 // number of bytes in a G1 and G2 public key
 pub const G1_PUBLIC_KEY_BYTES: usize = 48;
@@ -447,7 +446,6 @@ impl<'a> ConvView for View<'a> {
     }
 
     /// try to convert a Multikey to an ssh_key::PublicKey
-    #[cfg(feature = "ssh")]
     fn to_ssh_public_key(&self) -> Result<ssh_key::PublicKey, Error> {
         let mut pk = self.mk.clone();
         if self.is_secret_key() {
@@ -466,7 +464,7 @@ impl<'a> ConvView for View<'a> {
             Codec::Bls12381G1Pub => {
                 key_bytes
                     .encode(&mut buf)
-                    .map_err(|e| ConversionsError::SshEncoding(e))?;
+                    .map_err(|e| ConversionsError::Ssh(e.into()))?;
                 ALGORITHM_NAME_G1
             }
             Codec::Bls12381G1PubShare => {
@@ -480,13 +478,13 @@ impl<'a> ConvView for View<'a> {
                 .into();
                 key_share
                     .encode(&mut buf)
-                    .map_err(|e| ConversionsError::SshEncoding(e))?;
+                    .map_err(|e| ConversionsError::Ssh(e.into()))?;
                 ALGORITHM_NAME_G1_SHARE
             }
             Codec::Bls12381G2Pub => {
                 key_bytes
                     .encode(&mut buf)
-                    .map_err(|e| ConversionsError::SshEncoding(e))?;
+                    .map_err(|e| ConversionsError::Ssh(e.into()))?;
                 ALGORITHM_NAME_G2
             }
             Codec::Bls12381G2PubShare => {
@@ -500,20 +498,20 @@ impl<'a> ConvView for View<'a> {
                 .into();
                 key_share
                     .encode(&mut buf)
-                    .map_err(|e| ConversionsError::SshEncoding(e))?;
+                    .map_err(|e| ConversionsError::Ssh(e.into()))?;
                 ALGORITHM_NAME_G2_SHARE
             }
             _ => return Err(ConversionsError::UnsupportedCodec(self.mk.codec).into()),
         };
 
         let opaque_key_bytes = ssh_key::public::OpaquePublicKeyBytes::decode(&mut buf.as_slice())
-            .map_err(|e| ConversionsError::SshKey(e))?;
+            .map_err(|e| ConversionsError::Ssh(e.into()))?;
 
         Ok(ssh_key::PublicKey::new(
             ssh_key::public::KeyData::Other(ssh_key::public::OpaquePublicKey {
                 algorithm: ssh_key::Algorithm::Other(
                     ssh_key::AlgorithmName::new(name)
-                        .map_err(|e| ConversionsError::SshKeyLabel(e))?,
+                        .map_err(|e| ConversionsError::Ssh(e.into()))?,
                 ),
                 key: opaque_key_bytes,
             }),
@@ -522,7 +520,6 @@ impl<'a> ConvView for View<'a> {
     }
 
     /// try to convert a Multikey to an ssh_key::PrivateKey
-    #[cfg(feature = "ssh")]
     fn to_ssh_private_key(&self) -> Result<ssh_key::PrivateKey, Error> {
         let secret_bytes = {
             let kd = self.mk.data_view()?;
@@ -544,10 +541,10 @@ impl<'a> ConvView for View<'a> {
             Codec::Bls12381G1Priv => {
                 secret_bytes
                     .encode(&mut secret_buf)
-                    .map_err(|e| ConversionsError::SshEncoding(e))?;
+                    .map_err(|e| ConversionsError::Ssh(e.into()))?;
                 key_bytes
                     .encode(&mut public_buf)
-                    .map_err(|e| ConversionsError::SshEncoding(e))?;
+                    .map_err(|e| ConversionsError::Ssh(e.into()))?;
                 ALGORITHM_NAME_G1
             }
             Codec::Bls12381G1PrivShare => {
@@ -569,19 +566,19 @@ impl<'a> ConvView for View<'a> {
                 .into();
                 secret_key_share
                     .encode(&mut secret_buf)
-                    .map_err(|e| ConversionsError::SshEncoding(e))?;
+                    .map_err(|e| ConversionsError::Ssh(e.into()))?;
                 public_key_share
                     .encode(&mut public_buf)
-                    .map_err(|e| ConversionsError::SshEncoding(e))?;
+                    .map_err(|e| ConversionsError::Ssh(e.into()))?;
                 ALGORITHM_NAME_G1_SHARE
             }
             Codec::Bls12381G2Priv => {
                 secret_bytes
                     .encode(&mut secret_buf)
-                    .map_err(|e| ConversionsError::SshEncoding(e))?;
+                    .map_err(|e| ConversionsError::Ssh(e.into()))?;
                 key_bytes
                     .encode(&mut public_buf)
-                    .map_err(|e| ConversionsError::SshEncoding(e))?;
+                    .map_err(|e| ConversionsError::Ssh(e.into()))?;
                 ALGORITHM_NAME_G2
             }
             Codec::Bls12381G2PrivShare => {
@@ -603,10 +600,10 @@ impl<'a> ConvView for View<'a> {
                 .into();
                 secret_key_share
                     .encode(&mut secret_buf)
-                    .map_err(|e| ConversionsError::SshEncoding(e))?;
+                    .map_err(|e| ConversionsError::Ssh(e.into()))?;
                 public_key_share
                     .encode(&mut public_buf)
-                    .map_err(|e| ConversionsError::SshEncoding(e))?;
+                    .map_err(|e| ConversionsError::Ssh(e.into()))?;
                 ALGORITHM_NAME_G2_SHARE
             }
             _ => return Err(ConversionsError::UnsupportedCodec(self.mk.codec).into()),
@@ -614,18 +611,18 @@ impl<'a> ConvView for View<'a> {
 
         let opaque_private_key_bytes =
             ssh_key::private::OpaquePrivateKeyBytes::decode(&mut secret_buf.as_slice())
-                .map_err(|e| ConversionsError::SshKey(e))?;
+                .map_err(|e| ConversionsError::Ssh(e.into()))?;
 
         let opaque_public_key_bytes =
             ssh_key::public::OpaquePublicKeyBytes::decode(&mut public_buf.as_slice())
-                .map_err(|e| ConversionsError::SshKey(e))?;
+                .map_err(|e| ConversionsError::Ssh(e.into()))?;
 
         Ok(ssh_key::PrivateKey::new(
             ssh_key::private::KeypairData::Other(ssh_key::private::OpaqueKeypair {
                 public: ssh_key::public::OpaquePublicKey {
                     algorithm: ssh_key::Algorithm::Other(
                         ssh_key::AlgorithmName::new(name)
-                            .map_err(|e| ConversionsError::SshKeyLabel(e))?,
+                            .map_err(|e| ConversionsError::Ssh(e.into()))?,
                     ),
                     key: opaque_public_key_bytes,
                 },
@@ -633,7 +630,7 @@ impl<'a> ConvView for View<'a> {
             }),
             self.mk.comment.clone(),
         )
-        .map_err(|e| ConversionsError::SshKey(e))?)
+        .map_err(|e| ConversionsError::Ssh(e.into()))?)
     }
 }
 

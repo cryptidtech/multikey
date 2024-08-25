@@ -10,7 +10,6 @@ license = "Apache-2.0"
 
 [features]
 default = ["serde"]
-ssh = ["ssh-key", "ssh-encoding", "multisig/ssh"]
 
 [dependencies]
 bcrypt-pbkdf = "0.10"
@@ -38,14 +37,17 @@ typenum = "1.17"
 unsigned-varint = { version = "0.8", features = ["std"] }
 vsss-rs = "3.4"
 zeroize = "1.7"
+ssh-encoding = { version = "0.2" }
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+ssh-key = { version = "0.6", default-features = false, features = [
+  "alloc",
+  "ecdsa",
+  "ed25519",
+] }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
-ssh-key = { version = "0.6", features = [
-  "alloc",
-  "crypto",
-  "ed25519",
-], optional = true }
-ssh-encoding = { version = "0.2", optional = true }
+ssh-key = { version = "0.6", features = ["alloc", "crypto", "ed25519"] }
 
 [dev-dependencies]
 serde_test = "1.0"

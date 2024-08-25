@@ -102,17 +102,8 @@ pub enum AttributesError {
 #[non_exhaustive]
 pub enum ConversionsError {
     /// Ssh key error
-    #[cfg(feature = "ssh")]
     #[error(transparent)]
-    SshKey(#[from] ssh_key::Error),
-    /// Ssh key label error
-    #[cfg(feature = "ssh")]
-    #[error(transparent)]
-    SshKeyLabel(#[from] ssh_encoding::LabelError),
-    /// Ssh encoding error
-    #[cfg(feature = "ssh")]
-    #[error(transparent)]
-    SshEncoding(#[from] ssh_encoding::Error),
+    Ssh(#[from] SshErrors),
     /// Public key operation failure
     #[error("Public key error: {0}")]
     PublicKeyFailure(String),
@@ -125,6 +116,48 @@ pub enum ConversionsError {
     /// Error with the key codec
     #[error("Unsupported key codec: {0}")]
     UnsupportedCodec(multicodec::Codec),
+}
+
+/// SSH Encoding Errors that cannot be handled by thiserror since they may not use the std feature
+/// in the case of wasm32 target. LAAEL AND ENCODING.
+#[derive(Clone, Debug)]
+pub enum SshErrors {
+    Key(ssh_key::Error),
+    /// Invalid label.
+    KeyLabel(ssh_encoding::LabelError),
+    /// Unexpected trailing data at end of message.
+    Encoding(ssh_encoding::Error),
+}
+
+/// Impl Display for EncodingError
+impl std::fmt::Display for SshErrors {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            SshErrors::Key(err) => write!(f, "{}", err),
+            SshErrors::KeyLabel(err) => write!(f, "{}", err),
+            SshErrors::Encoding(err) => write!(f, "{}", err),
+        }
+    }
+}
+
+impl std::error::Error for SshErrors {}
+
+impl From<ssh_encoding::Error> for SshErrors {
+    fn from(err: ssh_encoding::Error) -> Self {
+        SshErrors::Encoding(err)
+    }
+}
+
+impl From<ssh_key::Error> for SshErrors {
+    fn from(err: ssh_key::Error) -> Self {
+        SshErrors::Key(err)
+    }
+}
+
+impl From<ssh_encoding::LabelError> for SshErrors {
+    fn from(err: ssh_encoding::LabelError) -> Self {
+        SshErrors::KeyLabel(err)
+    }
 }
 
 /// Cipher errors created by this library

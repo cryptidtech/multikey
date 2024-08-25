@@ -14,7 +14,6 @@ use multihash::{mh, Multihash};
 use multisig::{ms, Multisig, Views as SigViews};
 use multitrait::TryDecodeFrom;
 use multiutil::Varuint;
-#[cfg(feature = "ssh")]
 use ssh_encoding::{Decode, Encode};
 use zeroize::Zeroizing;
 
@@ -23,7 +22,7 @@ pub const SECRET_KEY_LENGTH: usize = 32;
 /// the number of bytes in an secp256k1 public key
 pub const PUBLIC_KEY_LENGTH: usize = 33;
 /// the RFC 4251 algorithm name for SSH compatibility
-pub const ALGORITHM_NAME: &'static str = "secp256k1@multikey";
+pub const ALGORITHM_NAME: &str = "secp256k1@multikey";
 
 pub(crate) struct View<'a> {
     mk: &'a Multikey,
@@ -197,7 +196,6 @@ impl<'a> ConvView for View<'a> {
     }
 
     /// try to convert a Multikey to an ssh_key::PublicKey
-    #[cfg(feature = "ssh")]
     fn to_ssh_public_key(&self) -> Result<ssh_key::PublicKey, Error> {
         let mut pk = self.mk.clone();
         if self.is_secret_key() {
@@ -213,15 +211,15 @@ impl<'a> ConvView for View<'a> {
         let mut buff: Vec<u8> = Vec::new();
         key_bytes
             .encode(&mut buff)
-            .map_err(|e| ConversionsError::SshEncoding(e))?;
+            .map_err(|e| ConversionsError::Ssh(e.into()))?;
         let opaque_key_bytes = ssh_key::public::OpaquePublicKeyBytes::decode(&mut buff.as_slice())
-            .map_err(|e| ConversionsError::SshKey(e))?;
+            .map_err(|e| ConversionsError::Ssh(e.into()))?;
 
         Ok(ssh_key::PublicKey::new(
             ssh_key::public::KeyData::Other(ssh_key::public::OpaquePublicKey {
                 algorithm: ssh_key::Algorithm::Other(
                     ssh_key::AlgorithmName::new(ALGORITHM_NAME)
-                        .map_err(|e| ConversionsError::SshKeyLabel(e))?,
+                        .map_err(|e| ConversionsError::Ssh(e.into()))?,
                 ),
                 key: opaque_key_bytes,
             }),
@@ -230,7 +228,6 @@ impl<'a> ConvView for View<'a> {
     }
 
     /// try to convert a Multikey to an ssh_key::PrivateKey
-    #[cfg(feature = "ssh")]
     fn to_ssh_private_key(&self) -> Result<ssh_key::PrivateKey, Error> {
         let secret_bytes = {
             let kd = self.mk.data_view()?;
@@ -241,10 +238,10 @@ impl<'a> ConvView for View<'a> {
         let mut buf: Vec<u8> = Vec::new();
         secret_bytes
             .encode(&mut buf)
-            .map_err(|e| ConversionsError::SshEncoding(e))?;
+            .map_err(|e| ConversionsError::Ssh(e.into()))?;
         let opaque_private_key_bytes =
             ssh_key::private::OpaquePrivateKeyBytes::decode(&mut buf.as_slice())
-                .map_err(|e| ConversionsError::SshKey(e))?;
+                .map_err(|e| ConversionsError::Ssh(e.into()))?;
 
         let pk = self.to_public_key()?;
         let key_bytes = {
@@ -256,17 +253,17 @@ impl<'a> ConvView for View<'a> {
         buf.clear();
         key_bytes
             .encode(&mut buf)
-            .map_err(|e| ConversionsError::SshEncoding(e))?;
+            .map_err(|e| ConversionsError::Ssh(e.into()))?;
         let opaque_public_key_bytes =
             ssh_key::public::OpaquePublicKeyBytes::decode(&mut buf.as_slice())
-                .map_err(|e| ConversionsError::SshKey(e))?;
+                .map_err(|e| ConversionsError::Ssh(e.into()))?;
 
         Ok(ssh_key::PrivateKey::new(
             ssh_key::private::KeypairData::Other(ssh_key::private::OpaqueKeypair {
                 public: ssh_key::public::OpaquePublicKey {
                     algorithm: ssh_key::Algorithm::Other(
                         ssh_key::AlgorithmName::new(ALGORITHM_NAME)
-                            .map_err(|e| ConversionsError::SshKeyLabel(e))?,
+                            .map_err(|e| ConversionsError::Ssh(e.into()))?,
                     ),
                     key: opaque_public_key_bytes,
                 },
@@ -274,7 +271,7 @@ impl<'a> ConvView for View<'a> {
             }),
             self.mk.comment.clone(),
         )
-        .map_err(|e| ConversionsError::SshKey(e))?)
+        .map_err(|e| ConversionsError::Ssh(e.into()))?)
     }
 }
 
