@@ -38,7 +38,6 @@ jobs:
           target: ${{ matrix.target }}
       - run: ${{ matrix.deps }}
       - run: cargo build --target ${{ matrix.target }} --release --all-features
-    runs-on: ubuntu-latest
 
   wasm_builds:
       runs-on: ubuntu-latest
