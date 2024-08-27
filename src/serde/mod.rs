@@ -196,12 +196,14 @@ mod tests {
             cipher.encrypt().unwrap()
         };
 
-        let v: Vec<u8> = mk2.clone().into();
-        print!("mk2: ");
-        for b in &v {
-            print!("0x{:02x}, ", b);
-        }
-        println!("");
+        /*
+                let v: Vec<u8> = mk2.clone().into();
+                print!("mk2: ");
+                for b in &v {
+                    print!("0x{:02x}, ", b);
+                }
+                println!("");
+        */
 
         assert_tokens(
             &mk2.compact(),
