@@ -119,7 +119,7 @@ pub enum ConversionsError {
 }
 
 /// SSH Encoding Errors that cannot be handled by thiserror since they may not use the std feature
-/// in the case of wasm32 target. LAAEL AND ENCODING.
+/// in the case of wasm32 target.
 #[derive(Clone, Debug)]
 pub enum SshErrors {
     Key(ssh_key::Error),
