@@ -10,7 +10,7 @@ license = "Apache-2.0"
 
 [features]
 default = ["serde"]
-wasm = ["getrandom/js"]
+wasm = ["getrandom/js"] # needed for CI testing on wasm32-unknown-unknown
 
 [dependencies]
 bcrypt-pbkdf = "0.10"
