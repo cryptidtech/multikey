@@ -905,6 +905,15 @@ mod tests {
                 .with_comment("test key")
                 .try_build()
                 .unwrap();
+            let (vpk, epk) = {
+                let conv = mk.conv_view().unwrap();
+                let pk = conv.to_public_key().unwrap();
+                (Into::<Vec<u8>>::into(pk.clone()), EncodedMultikey::from(pk))
+            };
+            println!("encoded pubkey: {}: {}", codec, epk);
+            println!("encoded pubkey v: {}: {}", codec, hex::encode(vpk));
+            println!("encoded privkey: {}: {}", codec, EncodedMultikey::from(mk.clone()));
+            println!("encoded privkey v: {}: {}", codec, hex::encode(Into::<Vec<u8>>::into(mk.clone())));
             let _v: Vec<u8> = mk.into();
         }
     }
@@ -920,7 +929,7 @@ mod tests {
                 .try_build_encoded()
                 .unwrap();
             let s = mk.to_string();
-            println!("{}: {}", codec, s);
+            //println!("encoded privkey: {}: {}", codec, s);
             assert_eq!(mk, EncodedMultikey::try_from(s.as_str()).unwrap());
         }
     }
@@ -1280,11 +1289,11 @@ mod tests {
 
     #[test]
     fn test_pub_from_string() {
-        let s = "zVQSE6EFkZ7inH63w9bBj9jtkj1wL8LHrQ3mW1P9db6JBLnf3aEaesMak9p8Jinmb".to_string();
+        let s = "fba24ed010874657374206b6579010120f9ddcd5118319cc69e6985ef3f4ee3b6c591d46255e1ae5569c8662111b7d3c2".to_string();
         let mk = EncodedMultikey::try_from(s.as_str()).unwrap();
         let attr = mk.attr_view().unwrap();
         assert_eq!(mk.codec(), Codec::Ed25519Pub);
-        assert_eq!(mk.encoding(), Base::Base58Btc);
+        assert_eq!(mk.encoding(), Base::Base16Lower);
         assert_eq!(mk.comment, "test key".to_string());
         assert!(!attr.is_encrypted());
         assert!(attr.is_public_key());
@@ -1296,12 +1305,11 @@ mod tests {
 
     #[test]
     fn test_priv_from_string() {
-        let s = "bhkacmcdumvzxiidlmv4qcaja5nk775jrjosqisq42b45vfsxzkah2753vhkjzzg3jdteo2zqrp2a"
-            .to_string();
+        let s = "fba2480260874657374206b657901012064e58adf88f85cbec6a0448a0803f9d28cf9231a7141be413f83cf6aa883cd04".to_string();
         let mk = EncodedMultikey::try_from(s.as_str()).unwrap();
         let attr = mk.attr_view().unwrap();
         assert_eq!(mk.codec(), Codec::Ed25519Priv);
-        assert_eq!(mk.encoding(), Base::Base32Lower);
+        assert_eq!(mk.encoding(), Base::Base16Lower);
         assert_eq!(mk.comment, "test key".to_string());
         assert!(!attr.is_encrypted());
         assert!(!attr.is_public_key());
@@ -1313,7 +1321,7 @@ mod tests {
 
     #[test]
     fn test_pub_from_vec() {
-        let b = hex::decode("3aed010874657374206b6579010120552da9e68c94a11c75da53e66d269a992647ca6cfabca4283e1fd322cceb75d4").unwrap();
+        let b = hex::decode("ba24ed010874657374206b6579010120f9ddcd5118319cc69e6985ef3f4ee3b6c591d46255e1ae5569c8662111b7d3c2").unwrap();
         let mk = Multikey::try_from(b.as_slice()).unwrap();
         let attr = mk.attr_view().unwrap();
         assert_eq!(mk.codec(), Codec::Ed25519Pub);
@@ -1328,7 +1336,7 @@ mod tests {
 
     #[test]
     fn test_priv_from_vec() {
-        let b = hex::decode("3a80260874657374206b65790101201e0d7193b676e03b2ba4f329c3817d569de404eef2809b7f401111435dcf3f6b").unwrap();
+        let b = hex::decode("ba2480260874657374206b657901012064e58adf88f85cbec6a0448a0803f9d28cf9231a7141be413f83cf6aa883cd04").unwrap();
         let mk = Multikey::try_from(b.as_slice()).unwrap();
         let attr = mk.attr_view().unwrap();
         assert_eq!(mk.codec(), Codec::Ed25519Priv);

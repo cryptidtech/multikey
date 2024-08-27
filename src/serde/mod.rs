@@ -76,19 +76,22 @@ mod tests {
 
         assert_tokens(
             &mk.compact(),
-            &[Token::BorrowedBytes(&[
-                0x3a, // Multikey sigil
-                0xed, 0x01, // Ed25519 public key as varuint
-                0x08, // comment length
-                0x74, 0x65, 0x73, 0x74, 0x20, 0x6b, 0x65, 0x79, // comment
-                0x01, // 1 attribute
-                0x01, // key data attributes
-                0x20, // 32 bytes in the public key
-                // public key bytes
-                0x13, 0xe1, 0xe6, 0xe8, 0xc3, 0x53, 0x67, 0x2b, 0x75, 0x9c, 0x93, 0xc3, 0x97, 0x95,
-                0x69, 0x27, 0xe1, 0x50, 0x3c, 0x6e, 0xdd, 0x73, 0xf2, 0x40, 0xcc, 0xff, 0x2b, 0x7d,
-                0xd0, 0x45, 0x58, 0xb6,
-            ])],
+            &[
+                Token::BorrowedBytes(&[
+                    0xba, 0x24,     // Multikey sigil
+                    0xed, 0x01,     // Ed25519 public key as varuint
+                    0x08,           // comment length
+                    0x74, 0x65, 0x73, 0x74, 0x20, 0x6b, 0x65, 0x79, // comment
+                    0x01,           // 1 attribute
+                    0x01,           // key data attributes
+                    0x20,           // 32 bytes in the public key
+                    // public key bytes
+                    0x13, 0xe1, 0xe6, 0xe8, 0xc3, 0x53, 0x67, 0x2b,
+                    0x75, 0x9c, 0x93, 0xc3, 0x97, 0x95, 0x69, 0x27,
+                    0xe1, 0x50, 0x3c, 0x6e, 0xdd, 0x73, 0xf2, 0x40,
+                    0xcc, 0xff, 0x2b, 0x7d, 0xd0, 0x45, 0x58, 0xb6
+                ]),
+            ],
         );
     }
 
@@ -106,7 +109,7 @@ mod tests {
         assert_tokens(
             &pk.readable(),
             &[Token::Str(
-                "zVCYiTqf3RfiqqE4RxExy5XEvCWJKnHH4P67PLC1VuAuA1N8X1qQhM3Y3Bp1xmTQ5",
+                "z7q2yVpRpajoAeCS88yKcpYdNB5dtDEDvKqPGXAyTEebE8qxx8Zgh8MwFcbbvbMTSjT",
             )],
         );
     }
@@ -207,26 +210,42 @@ mod tests {
 
         assert_tokens(
             &mk2.compact(),
-            &[Token::BorrowedBytes(&[
-                0x3a, // Multikey sigil
-                0x80, 0x26, // Ed25519 private codec as varuint
-                0x08, // comment of 8 bytes
-                0x74, 0x65, 0x73, 0x74, 0x20, 0x6b, 0x65, 0x79, // comment
-                0x08, // 8 attributes
-                0x00, 0x01, 0x01, // key is encrypted
-                // key data of 48 bytes
-                0x01, 0x20, 0xef, 0x7c, 0xf7, 0x8f, 0x3e, 0x0e, 0x58, 0x82, 0x32, 0xa4, 0x23, 0xdb,
-                0x1f, 0xdf, 0x02, 0xe2, 0x18, 0xc4, 0x94, 0x4c, 0x35, 0xba, 0x4e, 0xb4, 0x54, 0x96,
-                0xb5, 0x27, 0x42, 0x53, 0x9d, 0x78, 0x02, 0x02, 0xa5, 0x01, 0x03, 0x01, 0x20, 0x04,
-                0x0c, 0x71, 0x4e, 0x5a, 0xbf, 0x0f, // cipher codec
-                0x7b, 0xea, 0xe8, 0xaa, // cipher key len (32)
-                0xbb, 0xcc, 0xdd, // cipher nonce
-                0x05, 0x03, 0x8d, 0xa0, 0x03, // kdf salt
-                0x06, 0x20, 0x62, 0x1f, 0x20, 0xcf, 0xda, 0x14, 0x0b, 0xd8, 0xbf, 0x83, 0xa8, 0x99,
-                0x16, 0x74, 0x28, 0x46, 0x29, 0x29, 0xa4, 0x1e, 0x9b, 0x68, 0xa8, 0x46, 0x7b, 0xfc,
-                0x24, 0x55, 0xe9, 0xf9, 0x84, 0x06, // kdf rounds (10)
-                0x07, 0x01, 0x0a,
-            ])],
+            &[
+                Token::BorrowedBytes(&[
+                    0xba, 0x24,     // Multikey sigil
+                    0x80, 0x26,     // Ed25519 private codec as varuint
+                    0x08,           // comment of 8 bytes
+                    // comment
+                    0x74, 0x65, 0x73, 0x74, 0x20, 0x6b, 0x65, 0x79,
+                    0x08,           // 8 attributes
+                    // key is encrypted
+                    0x00, 0x01, 0x01,
+                    // key data of 48 bytes
+                    0x01, 0x30, 
+                    0xb7, 0xa9, 0x28, 0xdf, 0x65, 0x68, 0xbf, 0x6c,
+                    0xbe, 0xcc, 0x2e, 0x1e, 0x9a, 0xfe, 0xb8, 0x35,
+                    0xbe, 0x69, 0x08, 0x3e, 0x3f, 0xe2, 0x5f, 0x57,
+                    0x38, 0xad, 0x16, 0x57, 0x54, 0x35, 0xb4, 0xab,
+                    0x6a, 0x67, 0x9e, 0x08, 0x69, 0x6b, 0x1f, 0xc4,
+                    0x63, 0x7f, 0xbb, 0xad, 0x85, 0xd0, 0x52, 0x9a,
+                    // cipher codec
+                    0x02, 0x02, 0xa5, 0x01,
+                    // cipher key len (32)
+                    0x03, 0x01, 0x20,
+                    // cipher nonce
+                    0x04, 0x08, 0x71, 0x4e, 0x5a, 0xbf, 0x0f, 0x7b, 0xea, 0xe8,
+                    // kdf codec
+                    0x05, 0x03, 0x8d, 0xa0, 0x03,
+                    // kdf salt
+                    0x06, 0x20, 
+                    0x62, 0x1f, 0x20, 0xcf, 0xda, 0x14, 0x0b, 0xd8,
+                    0xbf, 0x83, 0xa8, 0x99, 0x16, 0x74, 0x28, 0x46,
+                    0x29, 0x29, 0xa4, 0x1e, 0x9b, 0x68, 0xa8, 0x46,
+                    0x7b, 0xfc, 0x24, 0x55, 0xe9, 0xf9, 0x84, 0x06,
+                    // kdf rounds (10)
+                    0x07, 0x01, 0x0a,
+                ]),
+            ],
         );
     }
 
@@ -390,12 +409,12 @@ mod tests {
             .with_key_bytes(&bytes)
             .try_build_encoded()
             .unwrap();
-        println!("{}", emk);
+        println!("encoded bls private: {}", emk);
         */
 
         // build a secret key share multikey
         let emk = EncodedMultikey::try_from(
-            "zVDXiufT1nH3FWqLCAq9zvngU8nLUv1jvrkp8hGajy38caidL18ML9E5fYYfJkXQJ",
+            "z7q2zUpseNi9mxc7jQjYD1aUdcdaAFPMenhrwDvLXotf6NJYJdNfz4zjSADxfEhSWjg",
         )
         .unwrap();
         let mk1 = emk.to_inner();
@@ -475,10 +494,9 @@ mod tests {
 
         assert_tokens(
             &n.compact(),
-            &[Token::BorrowedBytes(&[
-                59, 32, 118, 137, 82, 114, 197, 206, 92, 12, 114, 181, 236, 84, 148, 78, 173, 115,
-                148, 130, 248, 112, 72, 219, 191, 193, 59, 135, 48, 8, 179, 29, 89, 149,
-            ])],
+            &[
+                Token::BorrowedBytes(&[187, 36, 32, 118, 137, 82, 114, 197, 206, 92, 12, 114, 181, 236, 84, 148, 78, 173, 115, 148, 130, 248, 112, 72, 219, 191, 193, 59, 135, 48, 8, 179, 29, 89, 149]),
+            ],
         );
     }
 
@@ -493,7 +511,7 @@ mod tests {
         assert_tokens(
             &n.readable(),
             &[Token::Str(
-                "f3b2076895272c5ce5c0c72b5ec54944ead739482f87048dbbfc13b873008b31d5995",
+                "fbb242076895272c5ce5c0c72b5ec54944ead739482f87048dbbfc13b873008b31d5995",
             )],
         );
     }
@@ -523,7 +541,9 @@ mod tests {
         let mk = Multikey::null();
         assert_tokens(
             &mk.compact(),
-            &[Token::BorrowedBytes(&[0x3a, 0x0, 0x0, 0x0])],
+            &[
+                Token::BorrowedBytes(&[186, 36, 0, 0, 0]),
+            ]
         );
     }
 
@@ -552,13 +572,23 @@ mod tests {
     #[test]
     fn test_encoded_null_multikey_serde_readable() {
         let mk: EncodedMultikey = Multikey::null().into();
-        assert_tokens(&mk.readable(), &[Token::Str("f3a000000")]);
+        assert_tokens(
+            &mk.readable(),
+            &[
+                Token::Str("fba24000000"),
+            ]
+        );
     }
 
     #[test]
     fn test_null_nonce_serde_compact() {
         let n = nonce::Nonce::null();
-        assert_tokens(&n.compact(), &[Token::BorrowedBytes(&[59, 0])]);
+        assert_tokens(
+            &n.compact(),
+            &[
+                Token::BorrowedBytes(&[187, 36, 0]),
+            ]
+        );
     }
 
     #[test]
@@ -581,6 +611,11 @@ mod tests {
     #[test]
     fn test_encoded_null_nonce_serde_readable() {
         let n: nonce::EncodedNonce = nonce::Nonce::null().into();
-        assert_tokens(&n.readable(), &[Token::Str("f3b00")]);
+        assert_tokens(
+            &n.readable(),
+            &[
+                Token::Str("fbb2400"),
+            ]
+        );
     }
 }
