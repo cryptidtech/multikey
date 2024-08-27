@@ -55,13 +55,13 @@ impl AsRef<[u8]> for Nonce {
     }
 }
 
-impl Into<Vec<u8>> for Nonce {
-    fn into(self) -> Vec<u8> {
+impl From<Nonce> for Vec<u8> {
+    fn from(n: Nonce) -> Vec<u8> {
         let mut v = Vec::default();
         // add the sigil
         v.append(&mut SIGIL.into());
         // add the nonce bytes
-        v.append(&mut Varbytes(self.nonce.clone()).into());
+        v.append(&mut Varbytes(n.nonce).into());
         v
     }
 }

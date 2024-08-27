@@ -92,19 +92,19 @@ impl EncodingInfo for Multikey {
     }
 }
 
-impl Into<Vec<u8>> for Multikey {
-    fn into(self) -> Vec<u8> {
+impl From<Multikey> for Vec<u8> {
+    fn from(mk: Multikey) -> Vec<u8> {
         let mut v = Vec::default();
         // add in the sigil
         v.append(&mut SIGIL.into());
         // add in the key codec
-        v.append(&mut self.codec.clone().into());
+        v.append(&mut mk.codec.into());
         // add in the comment
-        v.append(&mut Varbytes(self.comment.as_bytes().to_vec()).into());
+        v.append(&mut Varbytes(mk.comment.as_bytes().to_vec()).into());
         // add in the number of codec-specific attributes
-        v.append(&mut Varuint(self.attributes.len()).into());
+        v.append(&mut Varuint(mk.attributes.len()).into());
         // add in the codec-specific attributes
-        self.attributes.iter().for_each(|(id, attr)| {
+        mk.attributes.iter().for_each(|(id, attr)| {
             v.append(&mut (*id).into());
             v.append(&mut Varbytes(attr.to_vec()).into());
         });
