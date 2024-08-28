@@ -46,17 +46,17 @@ pub struct KeyShare(
     pub Vec<u8>,
 );
 
-impl Into<Vec<u8>> for KeyShare {
-    fn into(self) -> Vec<u8> {
+impl From<KeyShare> for Vec<u8> {
+    fn from(val: KeyShare) -> Self {
         let mut v = Vec::default();
         // add in the share identifier
-        v.append(&mut Varuint(self.0).into());
+        v.append(&mut Varuint(val.0).into());
         // add in the threshold
-        v.append(&mut Varuint(self.1).into());
+        v.append(&mut Varuint(val.1).into());
         // add in the limit
-        v.append(&mut Varuint(self.2).into());
+        v.append(&mut Varuint(val.2).into());
         // add in the key share data
-        v.append(&mut Varbytes(self.3.clone()).into());
+        v.append(&mut Varbytes(val.3.clone()).into());
         v
     }
 }
@@ -97,13 +97,13 @@ impl<'a> TryDecodeFrom<'a> for KeyShare {
 #[derive(Clone, Default)]
 pub(crate) struct ThresholdData(pub(crate) BTreeMap<u8, KeyShare>);
 
-impl Into<Vec<u8>> for ThresholdData {
-    fn into(self) -> Vec<u8> {
+impl From<ThresholdData> for Vec<u8> {
+    fn from(val: ThresholdData) -> Self {
         let mut v = Vec::default();
         // add in the number of key shares
-        v.append(&mut Varuint(self.0.len()).into());
+        v.append(&mut Varuint(val.0.len()).into());
         // add in the key shares
-        self.0.iter().for_each(|(_, share)| {
+        val.0.iter().for_each(|(_, share)| {
             v.append(&mut share.clone().into());
         });
         v
@@ -163,31 +163,23 @@ impl<'a> AttrView for View<'a> {
                 return b.to_inner();
             }
         }
-        return false;
+        false
     }
 
     fn is_secret_key(&self) -> bool {
-        match self.mk.codec {
+        matches!(self.mk.codec,
             Codec::Bls12381G1Priv
             | Codec::Bls12381G2Priv
             | Codec::Bls12381G1PrivShare
-            | Codec::Bls12381G2PrivShare => true,
-            _ => false,
-        }
+            | Codec::Bls12381G2PrivShare)
     }
 
     fn is_public_key(&self) -> bool {
-        match self.mk.codec {
-            Codec::Bls12381G1Pub | Codec::Bls12381G2Pub => true,
-            _ => false,
-        }
+        matches!(self.mk.codec, Codec::Bls12381G1Pub | Codec::Bls12381G2Pub)
     }
 
     fn is_secret_key_share(&self) -> bool {
-        match self.mk.codec {
-            Codec::Bls12381G1PrivShare | Codec::Bls12381G2PrivShare => true,
-            _ => false,
-        }
+        matches!(self.mk.codec, Codec::Bls12381G1PrivShare | Codec::Bls12381G2PrivShare)
     }
 }
 
@@ -250,7 +242,7 @@ impl<'a> DataView for View<'a> {
         if self.is_encrypted() {
             return Err(AttributesError::EncryptedKey.into());
         }
-        Ok(self.key_bytes()?)
+        self.key_bytes()
     }
 }
 
@@ -331,8 +323,8 @@ impl<'a> FingerprintView for View<'a> {
             // get the key bytes
             let bytes = {
                 let kd = self.mk.data_view()?;
-                let bytes = kd.key_bytes()?;
-                bytes
+                
+                kd.key_bytes()?
             };
             // hash the key bytes using the given codec
             Ok(mh::Builder::new_from_bytes(codec, bytes)?.try_build()?)
@@ -346,8 +338,8 @@ impl<'a> ConvView for View<'a> {
         // get the secret key bytes
         let secret_bytes = {
             let kd = self.mk.data_view()?;
-            let secret_bytes = kd.secret_bytes()?;
-            secret_bytes
+            
+            kd.secret_bytes()?
         };
 
         match self.mk.codec {
@@ -454,8 +446,8 @@ impl<'a> ConvView for View<'a> {
 
         let key_bytes = {
             let kd = pk.data_view()?;
-            let key_bytes = kd.key_bytes()?;
-            key_bytes
+            
+            kd.key_bytes()?
         };
 
         let mut buf: Vec<u8> = Vec::new();
@@ -465,6 +457,8 @@ impl<'a> ConvView for View<'a> {
                 key_bytes
                     .encode(&mut buf)
                     .map_err(|e| ConversionsError::Ssh(e.into()))?;
+                    .map_err(|e| ConversionsError::SshEncoding(e))?;
+                    .map_err(ConversionsError::SshEncoding)?;
                 ALGORITHM_NAME_G1
             }
             Codec::Bls12381G1PubShare => {
@@ -479,12 +473,16 @@ impl<'a> ConvView for View<'a> {
                 key_share
                     .encode(&mut buf)
                     .map_err(|e| ConversionsError::Ssh(e.into()))?;
+                    .map_err(|e| ConversionsError::SshEncoding(e))?;
+                    .map_err(ConversionsError::SshEncoding)?;
                 ALGORITHM_NAME_G1_SHARE
             }
             Codec::Bls12381G2Pub => {
                 key_bytes
                     .encode(&mut buf)
                     .map_err(|e| ConversionsError::Ssh(e.into()))?;
+                    .map_err(|e| ConversionsError::SshEncoding(e))?;
+                    .map_err(ConversionsError::SshEncoding)?;
                 ALGORITHM_NAME_G2
             }
             Codec::Bls12381G2PubShare => {
@@ -499,6 +497,8 @@ impl<'a> ConvView for View<'a> {
                 key_share
                     .encode(&mut buf)
                     .map_err(|e| ConversionsError::Ssh(e.into()))?;
+                    .map_err(|e| ConversionsError::SshEncoding(e))?;
+                    .map_err(ConversionsError::SshEncoding)?;
                 ALGORITHM_NAME_G2_SHARE
             }
             _ => return Err(ConversionsError::UnsupportedCodec(self.mk.codec).into()),
@@ -506,12 +506,16 @@ impl<'a> ConvView for View<'a> {
 
         let opaque_key_bytes = ssh_key::public::OpaquePublicKeyBytes::decode(&mut buf.as_slice())
             .map_err(|e| ConversionsError::Ssh(e.into()))?;
+            .map_err(|e| ConversionsError::SshKey(e))?;
+            .map_err(ConversionsError::SshKey)?;
 
         Ok(ssh_key::PublicKey::new(
             ssh_key::public::KeyData::Other(ssh_key::public::OpaquePublicKey {
                 algorithm: ssh_key::Algorithm::Other(
                     ssh_key::AlgorithmName::new(name)
                         .map_err(|e| ConversionsError::Ssh(e.into()))?,
+                        .map_err(|e| ConversionsError::SshKeyLabel(e))?,
+                        .map_err(ConversionsError::SshKeyLabel)?,
                 ),
                 key: opaque_key_bytes,
             }),
@@ -523,15 +527,15 @@ impl<'a> ConvView for View<'a> {
     fn to_ssh_private_key(&self) -> Result<ssh_key::PrivateKey, Error> {
         let secret_bytes = {
             let kd = self.mk.data_view()?;
-            let secret_bytes = kd.secret_bytes()?;
-            secret_bytes
+            
+            kd.secret_bytes()?
         };
 
         let pk = self.to_public_key()?;
         let key_bytes = {
             let kd = pk.data_view()?;
-            let key_bytes = kd.key_bytes()?;
-            key_bytes
+            
+            kd.key_bytes()?
         };
 
         let mut secret_buf: Vec<u8> = Vec::new();
@@ -542,9 +546,13 @@ impl<'a> ConvView for View<'a> {
                 secret_bytes
                     .encode(&mut secret_buf)
                     .map_err(|e| ConversionsError::Ssh(e.into()))?;
+                    .map_err(|e| ConversionsError::SshEncoding(e))?;
+                    .map_err(ConversionsError::SshEncoding)?;
                 key_bytes
                     .encode(&mut public_buf)
                     .map_err(|e| ConversionsError::Ssh(e.into()))?;
+                    .map_err(|e| ConversionsError::SshEncoding(e))?;
+                    .map_err(ConversionsError::SshEncoding)?;
                 ALGORITHM_NAME_G1
             }
             Codec::Bls12381G1PrivShare => {
@@ -567,18 +575,26 @@ impl<'a> ConvView for View<'a> {
                 secret_key_share
                     .encode(&mut secret_buf)
                     .map_err(|e| ConversionsError::Ssh(e.into()))?;
+                    .map_err(|e| ConversionsError::SshEncoding(e))?;
+                    .map_err(ConversionsError::SshEncoding)?;
                 public_key_share
                     .encode(&mut public_buf)
                     .map_err(|e| ConversionsError::Ssh(e.into()))?;
+                    .map_err(|e| ConversionsError::SshEncoding(e))?;
+                    .map_err(ConversionsError::SshEncoding)?;
                 ALGORITHM_NAME_G1_SHARE
             }
             Codec::Bls12381G2Priv => {
                 secret_bytes
                     .encode(&mut secret_buf)
                     .map_err(|e| ConversionsError::Ssh(e.into()))?;
+                    .map_err(|e| ConversionsError::SshEncoding(e))?;
+                    .map_err(ConversionsError::SshEncoding)?;
                 key_bytes
                     .encode(&mut public_buf)
                     .map_err(|e| ConversionsError::Ssh(e.into()))?;
+                    .map_err(|e| ConversionsError::SshEncoding(e))?;
+                    .map_err(ConversionsError::SshEncoding)?;
                 ALGORITHM_NAME_G2
             }
             Codec::Bls12381G2PrivShare => {
@@ -601,9 +617,13 @@ impl<'a> ConvView for View<'a> {
                 secret_key_share
                     .encode(&mut secret_buf)
                     .map_err(|e| ConversionsError::Ssh(e.into()))?;
+                    .map_err(|e| ConversionsError::SshEncoding(e))?;
+                    .map_err(ConversionsError::SshEncoding)?;
                 public_key_share
                     .encode(&mut public_buf)
                     .map_err(|e| ConversionsError::Ssh(e.into()))?;
+                    .map_err(|e| ConversionsError::SshEncoding(e))?;
+                    .map_err(ConversionsError::SshEncoding)?;
                 ALGORITHM_NAME_G2_SHARE
             }
             _ => return Err(ConversionsError::UnsupportedCodec(self.mk.codec).into()),
@@ -612,10 +632,14 @@ impl<'a> ConvView for View<'a> {
         let opaque_private_key_bytes =
             ssh_key::private::OpaquePrivateKeyBytes::decode(&mut secret_buf.as_slice())
                 .map_err(|e| ConversionsError::Ssh(e.into()))?;
+                .map_err(|e| ConversionsError::SshKey(e))?;
+                .map_err(ConversionsError::SshKey)?;
 
         let opaque_public_key_bytes =
             ssh_key::public::OpaquePublicKeyBytes::decode(&mut public_buf.as_slice())
                 .map_err(|e| ConversionsError::Ssh(e.into()))?;
+                .map_err(|e| ConversionsError::SshKey(e))?;
+                .map_err(ConversionsError::SshKey)?;
 
         Ok(ssh_key::PrivateKey::new(
             ssh_key::private::KeypairData::Other(ssh_key::private::OpaqueKeypair {
@@ -623,6 +647,8 @@ impl<'a> ConvView for View<'a> {
                     algorithm: ssh_key::Algorithm::Other(
                         ssh_key::AlgorithmName::new(name)
                             .map_err(|e| ConversionsError::Ssh(e.into()))?,
+                            .map_err(|e| ConversionsError::SshKeyLabel(e))?,
+                            .map_err(ConversionsError::SshKeyLabel)?,
                     ),
                     key: opaque_public_key_bytes,
                 },
@@ -631,6 +657,8 @@ impl<'a> ConvView for View<'a> {
             self.mk.comment.clone(),
         )
         .map_err(|e| ConversionsError::Ssh(e.into()))?)
+        .map_err(|e| ConversionsError::SshKey(e))?)
+        .map_err(ConversionsError::SshKey)?)
     }
 }
 
@@ -647,8 +675,8 @@ impl<'a> SignView for View<'a> {
         // get the secret key bytes
         let secret_bytes = {
             let kd = self.mk.data_view()?;
-            let secret_bytes = kd.secret_bytes()?;
-            secret_bytes
+            
+            kd.secret_bytes()?
         };
 
         // get the signature scheme
@@ -768,8 +796,8 @@ impl<'a> ThresholdView for View<'a> {
         // get the secret key bytes
         let secret_bytes = {
             let kd = self.mk.data_view()?;
-            let secret_bytes = kd.secret_bytes()?;
-            secret_bytes
+            
+            kd.secret_bytes()?
         };
 
         match self.mk.codec {
@@ -789,7 +817,7 @@ impl<'a> ThresholdView for View<'a> {
                 };
                 let key_shares = secret_key
                     .split(threshold, limit)
-                    .map_err(|e| ThresholdError::Bls(e))?;
+                    .map_err(ThresholdError::Bls)?;
 
                 let mut shares = Vec::with_capacity(key_shares.len());
 
@@ -829,7 +857,7 @@ impl<'a> ThresholdView for View<'a> {
 
                 let key_shares = secret_key
                     .split(threshold, limit)
-                    .map_err(|e| ThresholdError::Bls(e))?;
+                    .map_err(ThresholdError::Bls)?;
 
                 let mut shares = Vec::with_capacity(key_shares.len());
 
@@ -987,8 +1015,8 @@ impl<'a> VerifyView for View<'a> {
         let attr = self.mk.attr_view()?;
         let pubmk = if attr.is_secret_key() {
             let kc = self.mk.conv_view()?;
-            let mk = kc.to_public_key()?;
-            mk
+            
+            kc.to_public_key()?
         } else {
             self.mk.clone()
         };
@@ -1037,7 +1065,7 @@ impl<'a> VerifyView for View<'a> {
                 // get the message
                 let msg = if let Some(msg) = msg {
                     msg
-                } else if multisig.message.len() > 0 {
+                } else if !multisig.message.is_empty() {
                     multisig.message.as_slice()
                 } else {
                     return Err(VerifyError::MissingMessage.into());
@@ -1075,7 +1103,7 @@ impl<'a> VerifyView for View<'a> {
                 // get the message
                 let msg = if let Some(msg) = msg {
                     msg
-                } else if multisig.message.len() > 0 {
+                } else if !multisig.message.is_empty() {
                     multisig.message.as_slice()
                 } else {
                     return Err(VerifyError::MissingMessage.into());
@@ -1117,7 +1145,7 @@ impl<'a> VerifyView for View<'a> {
                 // get the message
                 let msg = if let Some(msg) = msg {
                     msg
-                } else if multisig.message.len() > 0 {
+                } else if !multisig.message.is_empty() {
                     multisig.message.as_slice()
                 } else {
                     return Err(VerifyError::MissingMessage.into());
@@ -1155,7 +1183,7 @@ impl<'a> VerifyView for View<'a> {
                 // get the message
                 let msg = if let Some(msg) = msg {
                     msg
-                } else if multisig.message.len() > 0 {
+                } else if !multisig.message.is_empty() {
                     multisig.message.as_slice()
                 } else {
                     return Err(VerifyError::MissingMessage.into());

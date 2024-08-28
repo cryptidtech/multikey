@@ -93,17 +93,29 @@ impl EncodingInfo for Multikey {
 
 impl From<Multikey> for Vec<u8> {
     fn from(val: Multikey) -> Self {
+impl Into<Vec<u8>> for Multikey {
+    fn into(self) -> Vec<u8> {
+impl From<Multikey> for Vec<u8> {
+    fn from(mk: Multikey) -> Vec<u8> {
         let mut v = Vec::default();
         // add in the sigil
         v.append(&mut SIGIL.into());
         // add in the key codec
         v.append(&mut val.codec.into());
+        v.append(&mut self.codec.clone().into());
+        v.append(&mut mk.codec.into());
         // add in the comment
         v.append(&mut Varbytes(val.comment.as_bytes().to_vec()).into());
+        v.append(&mut Varbytes(self.comment.as_bytes().to_vec()).into());
+        v.append(&mut Varbytes(mk.comment.as_bytes().to_vec()).into());
         // add in the number of codec-specific attributes
         v.append(&mut Varuint(val.attributes.len()).into());
+        v.append(&mut Varuint(self.attributes.len()).into());
+        v.append(&mut Varuint(mk.attributes.len()).into());
         // add in the codec-specific attributes
         val.attributes.iter().for_each(|(id, attr)| {
+        self.attributes.iter().for_each(|(id, attr)| {
+        mk.attributes.iter().for_each(|(id, attr)| {
             v.append(&mut (*id).into());
             v.append(&mut Varbytes(attr.to_vec()).into());
         });
@@ -404,14 +416,20 @@ impl Builder {
             Codec::Ed25519Priv => ed25519_dalek::SigningKey::generate(rng).to_bytes().to_vec(),
             Codec::P256Priv => EcdsaKeypair::random(rng, EcdsaCurve::NistP256)
                 .map_err(|e| ConversionsError::Ssh(e.into()))?
+                .map_err(|e| ConversionsError::SshKey(e))?
+                .map_err(ConversionsError::SshKey)?
                 .private_key_bytes()
                 .to_vec(),
             Codec::P384Priv => EcdsaKeypair::random(rng, EcdsaCurve::NistP384)
                 .map_err(|e| ConversionsError::Ssh(e.into()))?
+                .map_err(|e| ConversionsError::SshKey(e))?
+                .map_err(ConversionsError::SshKey)?
                 .private_key_bytes()
                 .to_vec(),
             Codec::P521Priv => EcdsaKeypair::random(rng, EcdsaCurve::NistP521)
                 .map_err(|e| ConversionsError::Ssh(e.into()))?
+                .map_err(|e| ConversionsError::SshKey(e))?
+                .map_err(ConversionsError::SshKey)?
                 .private_key_bytes()
                 .to_vec(),
             Codec::Secp256K1Priv => k256::SecretKey::random(rng).to_bytes().to_vec(),
@@ -818,7 +836,7 @@ impl Builder {
 
     fn with_attribute(mut self, attr: AttrId, data: &Vec<u8>) -> Self {
         let mut attributes = self.attributes.unwrap_or_default();
-        attributes.insert(attr, data.clone().into());
+        attributes.insert(attr, data.to_owned().into());
         self.attributes = Some(attributes);
         self
     }
@@ -830,7 +848,8 @@ impl Builder {
 
     /// add in the threshold value
     pub fn with_threshold(self, threshold: usize) -> Self {
-        self.with_attribute(AttrId::Threshold, &Varuint(threshold).into())
+        let v: Vec<u8> = Varuint(threshold).into();
+        self.with_attribute(AttrId::Threshold, &v)
     }
 
     /// add in the limit value
@@ -860,7 +879,7 @@ impl Builder {
     pub fn try_build_encoded(self) -> Result<EncodedMultikey, Error> {
         Ok(BaseEncoded::new(
             self.base_encoding
-                .unwrap_or_else(|| Multikey::preferred_encoding()),
+                .unwrap_or_else(Multikey::preferred_encoding),
             self.try_build()?,
         ))
     }

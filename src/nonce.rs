@@ -25,6 +25,11 @@ impl Nonce {
     pub fn len(&self) -> usize {
         self.nonce.len()
     }
+    
+    /// return if the nonce is empty
+    pub fn is_empty(&self) -> bool {
+        self.nonce.is_empty()
+    }
 }
 
 impl CodecInfo for Nonce {
@@ -55,13 +60,13 @@ impl AsRef<[u8]> for Nonce {
     }
 }
 
-impl Into<Vec<u8>> for Nonce {
-    fn into(self) -> Vec<u8> {
+impl From<Nonce> for Vec<u8> {
+    fn from(n: Nonce) -> Vec<u8> {
         let mut v = Vec::default();
         // add the sigil
         v.append(&mut SIGIL.into());
         // add the nonce bytes
-        v.append(&mut Varbytes(self.nonce.clone()).into());
+        v.append(&mut Varbytes(n.nonce).into());
         v
     }
 }
@@ -121,8 +126,7 @@ pub struct Builder {
 impl Builder {
     /// build from random source
     pub fn new_from_random_bytes(size: usize, rng: &mut (impl RngCore + CryptoRng)) -> Self {
-        let mut bytes = Vec::with_capacity(size);
-        bytes.resize(size, 0u8);
+        let mut bytes = vec![0; size];
         rng.fill_bytes(bytes.as_mut());
         Self {
             bytes,
@@ -148,7 +152,7 @@ impl Builder {
     pub fn try_build_encoded(&self) -> Result<EncodedNonce, Error> {
         Ok(EncodedNonce::new(
             self.base_encoding
-                .unwrap_or_else(|| Nonce::preferred_encoding()),
+                .unwrap_or_else(Nonce::preferred_encoding),
             self.try_build()?,
         ))
     }
