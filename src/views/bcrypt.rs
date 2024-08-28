@@ -31,7 +31,7 @@ impl<'a> KdfView for View<'a> {
     /// generates a new Multikey by copying the viewed Multikey (self) and
     /// storing the derived key and attributes in the new Multikey
     fn derive_key(&self, passphrase: &[u8]) -> Result<Multikey, Error> {
-        let kdf = self.kdf.ok_or(KdfError::MissingCodec)?;
+        let kdf = self.kdf.ok_or_else(|| KdfError::MissingCodec)?;
 
         // get the salt data and rounds attribute
         let (salt, rounds) = {
@@ -42,8 +42,8 @@ impl<'a> KdfView for View<'a> {
         // get the key length from the viewed Multikey
         let key_length = {
             let cattr = self.mk.cipher_attr_view()?;
-            
-            cattr.key_length()?
+            let key_length = cattr.key_length()?;
+            key_length
         };
 
         // heap allocate a buffer to receive the derived key
@@ -51,12 +51,12 @@ impl<'a> KdfView for View<'a> {
 
         // derive the key
         bcrypt_pbkdf::bcrypt_pbkdf(
-            passphrase,
+            passphrase.as_ref(),
             &salt,
             rounds as u32,
             key.as_mut_slice(),
         )
-        .map_err(KdfError::Bcrypt)?;
+        .map_err(|e| KdfError::Bcrypt(e))?;
 
         // prepare the attributes
         let kdf_codec: Vec<u8> = kdf.codec.into();
@@ -85,7 +85,7 @@ impl<'a> KdfAttrView for View<'a> {
             .mk
             .attributes
             .get(&AttrId::KdfSalt)
-            .ok_or(KdfError::MissingSalt)?;
+            .ok_or_else(|| KdfError::MissingSalt)?;
         if salt.len() != SALT_LENGTH {
             Err(KdfError::InvalidSaltLen.into())
         } else {

@@ -18,7 +18,7 @@ impl<'de> Deserialize<'de> for Nonce {
     where
         D: Deserializer<'de>,
     {
-        const FIELDS: &[&str] = &["nonce"];
+        const FIELDS: &'static [&'static str] = &["nonce"];
 
         #[derive(Deserialize)]
         #[serde(field_identifier, rename_all = "lowercase")]
@@ -84,28 +84,28 @@ impl<'de> Deserialize<'de> for AttrId {
             where
                 E: Error,
             {
-                AttrId::try_from(c).map_err(|e| Error::custom(e.to_string()))
+                Ok(AttrId::try_from(c).map_err(|e| Error::custom(e.to_string()))?)
             }
 
             fn visit_str<E>(self, s: &str) -> Result<Self::Value, E>
             where
                 E: Error,
             {
-                AttrId::try_from(s).map_err(|e| Error::custom(e.to_string()))
+                Ok(AttrId::try_from(s).map_err(|e| Error::custom(e.to_string()))?)
             }
 
             fn visit_borrowed_str<E>(self, s: &'de str) -> Result<Self::Value, E>
             where
                 E: Error,
             {
-                AttrId::try_from(s).map_err(|e| Error::custom(e.to_string()))
+                Ok(AttrId::try_from(s).map_err(|e| Error::custom(e.to_string()))?)
             }
 
             fn visit_string<E>(self, s: String) -> Result<Self::Value, E>
             where
                 E: Error,
             {
-                AttrId::try_from(s.as_str()).map_err(|e| Error::custom(e.to_string()))
+                Ok(AttrId::try_from(s.as_str()).map_err(|e| Error::custom(e.to_string()))?)
             }
         }
 
@@ -119,7 +119,7 @@ impl<'de> Deserialize<'de> for Multikey {
     where
         D: Deserializer<'de>,
     {
-        const FIELDS: &[&str] = &["codec", "comment", "attributes"];
+        const FIELDS: &'static [&'static str] = &["codec", "comment", "attributes"];
 
         #[derive(Deserialize)]
         #[serde(field_identifier, rename_all = "lowercase")]

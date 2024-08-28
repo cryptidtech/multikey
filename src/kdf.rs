@@ -25,7 +25,7 @@ impl Builder {
     /// initialize from a multikey with kdf attributes in it
     pub fn try_from_multikey(mut self, mk: &Multikey) -> Result<Self, Error> {
         // try to look up the kdf codec in the multikey attributes
-        if let Some(v) = mk.attributes.get(&AttrId::KdfCodec) {
+        if let Some(v) = mk.attributes.get(&(AttrId::KdfCodec.into())) {
             if let Ok(codec) = Codec::try_from(v.as_slice()) {
                 self.codec = codec;
             }

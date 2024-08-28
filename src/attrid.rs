@@ -38,7 +38,7 @@ pub enum AttrId {
 impl AttrId {
     /// Get the code for the attribute id
     pub fn code(&self) -> u8 {
-        (*self).into()
+        self.clone().into()
     }
 
     /// Convert the attribute id to &str
@@ -60,9 +60,9 @@ impl AttrId {
     }
 }
 
-impl From<AttrId> for u8 {
-    fn from(val: AttrId) -> Self {
-        val as u8
+impl Into<u8> for AttrId {
+    fn into(self) -> u8 {
+        self as u8
     }
 }
 
@@ -88,9 +88,9 @@ impl TryFrom<u8> for AttrId {
     }
 }
 
-impl From<AttrId> for Vec<u8> {
-    fn from(val: AttrId) -> Self {
-        let v: u8 = val.into();
+impl Into<Vec<u8>> for AttrId {
+    fn into(self) -> Vec<u8> {
+        let v: u8 = self.into();
         v.encode_into()
     }
 }

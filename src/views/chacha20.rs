@@ -104,18 +104,6 @@ impl<'a> CipherAttrView for View<'a> {
             Nonce::from_exact_iter(nonce.iter().copied()).ok_or(CipherError::InvalidNonce)?;
 
         Ok(nonce.to_vec().into())
-            .ok_or_else(|| CipherError::MissingNonce)?;
-        if nonce.len() != NONCE_LENGTH {
-            Err(CipherError::InvalidNonceLen.into())
-        } else {
-            Ok(nonce.clone())
-        }
-            .ok_or(CipherError::MissingNonce)?;
-        if nonce.len() != NONCE_LENGTH {
-            Err(CipherError::InvalidNonceLen.into())
-        } else {
-            Ok(nonce.clone())
-        }
     }
 
     fn key_length(&self) -> Result<usize, Error> {
@@ -176,10 +164,6 @@ impl<'a> CipherView for View<'a> {
 
         // create the chacha nonce from the data
         let n = Nonce::from_exact_iter(nonce.iter().copied()).ok_or(CipherError::InvalidNonce)?;
-        let n = chacha20poly1305::Nonce::from_slice(nonce.as_slice())
-            .ok_or_else(|| CipherError::InvalidNonce)?;
-        let n = chacha20poly1305::Nonce::from_slice(nonce.as_slice())
-            .ok_or(CipherError::InvalidNonce)?;
 
         // get the key data from the passed-in Multikey
         let key = {
@@ -194,18 +178,10 @@ impl<'a> CipherView for View<'a> {
         // create the chacha key from the data
         let k =
             chacha20::Key::from_exact_iter(key.iter().copied()).ok_or(CipherError::InvalidKey)?;
-        let k = chacha20poly1305::Key::from_slice(key.as_slice())
-            .ok_or_else(|| CipherError::InvalidKey)?;
-        let k = chacha20poly1305::Key::from_slice(key.as_slice())
-            .ok_or(CipherError::InvalidKey)?;
 
         // get the encrypted key bytes from the viewed Multikey (self)
         let msg = {
             let attr = self.mk.data_view()?;
-            attr.key_bytes()?
-            let msg = attr.key_bytes()?;
-            msg
-            
             attr.key_bytes()?
         };
 
@@ -250,10 +226,6 @@ impl<'a> CipherView for View<'a> {
         };
 
         let n = Nonce::from_exact_iter(nonce.iter().copied()).ok_or(CipherError::InvalidNonce)?;
-        let n = chacha20poly1305::Nonce::from_slice(nonce.as_slice())
-            .ok_or_else(|| CipherError::InvalidNonce)?;
-        let n = chacha20poly1305::Nonce::from_slice(nonce.as_slice())
-            .ok_or(CipherError::InvalidNonce)?;
 
         // get the key data from the passed-in Multikey
         let key = {
@@ -267,18 +239,10 @@ impl<'a> CipherView for View<'a> {
 
         let k =
             chacha20::Key::from_exact_iter(key.iter().copied()).ok_or(CipherError::InvalidKey)?;
-        let k = chacha20poly1305::Key::from_slice(key.as_slice())
-            .ok_or_else(|| CipherError::InvalidKey)?;
-        let k = chacha20poly1305::Key::from_slice(key.as_slice())
-            .ok_or(CipherError::InvalidKey)?;
 
         // get the secret bytes from the viewed Multikey
         let msg = {
             let kd = self.mk.data_view()?;
-            kd.secret_bytes()?
-            let msg = kd.secret_bytes()?;
-            msg
-            
             kd.secret_bytes()?
         };
 
@@ -325,10 +289,6 @@ impl<'a> FingerprintView for View<'a> {
         // get the key bytes
         let bytes = {
             let kd = self.mk.data_view()?;
-            kd.key_bytes()?
-            let bytes = kd.key_bytes()?;
-            bytes
-            
             kd.key_bytes()?
         };
         // hash the key bytes using the given codec
