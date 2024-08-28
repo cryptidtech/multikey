@@ -860,7 +860,7 @@ impl Builder {
     pub fn try_build_encoded(self) -> Result<EncodedMultikey, Error> {
         Ok(BaseEncoded::new(
             self.base_encoding
-                .unwrap_or_else(|| Multikey::preferred_encoding()),
+                .unwrap_or_else(Multikey::preferred_encoding),
             self.try_build()?,
         ))
     }
@@ -899,7 +899,7 @@ mod tests {
     #[test]
     fn test_random() {
         for codec in KEY_CODECS {
-            let mut rng = rand::rngs::OsRng::default();
+            let mut rng = rand::rngs::OsRng;
             let mk = Builder::new_from_random_bytes(codec, &mut rng)
                 .unwrap()
                 .with_comment("test key")
@@ -921,7 +921,7 @@ mod tests {
     #[test]
     fn test_encoded_random() {
         for codec in KEY_CODECS {
-            let mut rng = rand::rngs::OsRng::default();
+            let mut rng = rand::rngs::OsRng;
             let mk = Builder::new_from_random_bytes(codec, &mut rng)
                 .unwrap()
                 .with_base_encoding(Base::Base32Lower)
@@ -937,7 +937,7 @@ mod tests {
     #[test]
     fn test_random_public_ssh_key_roundtrip() {
         for codec in KEY_CODECS {
-            let mut rng = rand::rngs::OsRng::default();
+            let mut rng = rand::rngs::OsRng;
             let mk = Builder::new_from_random_bytes(codec, &mut rng)
                 .unwrap()
                 .with_comment("test key")
@@ -957,7 +957,7 @@ mod tests {
     #[test]
     fn test_random_private_ssh_key_roundtrip() {
         for codec in KEY_CODECS {
-            let mut rng = rand::rngs::OsRng::default();
+            let mut rng = rand::rngs::OsRng;
             let mk = Builder::new_from_random_bytes(codec, &mut rng)
                 .unwrap()
                 .with_comment("test key")
@@ -976,7 +976,7 @@ mod tests {
     #[test]
     fn test_ssh_key_roundtrip() {
         for codec in KEY_CODECS {
-            let mut rng = rand::rngs::OsRng::default();
+            let mut rng = rand::rngs::OsRng;
             let sk1 = Builder::new_from_random_bytes(codec, &mut rng)
                 .unwrap()
                 .with_comment("test key")
@@ -1043,14 +1043,14 @@ mod tests {
                 // key and the kdf and cipher attributes and data
                 let cipher = mk1.cipher_view(&ciphermk).unwrap();
                 // encrypt the multikey using the cipher
-                let mk = cipher.encrypt().unwrap();
-                mk
+                
+                cipher.encrypt().unwrap()
             };
 
             let attr = mk2.attr_view().unwrap();
-            assert_eq!(true, attr.is_encrypted());
-            assert_eq!(false, attr.is_public_key());
-            assert_eq!(true, attr.is_secret_key());
+            assert!(attr.is_encrypted());
+            assert!(!attr.is_public_key());
+            assert!(attr.is_secret_key());
             let kd = mk2.data_view().unwrap();
             assert!(kd.key_bytes().is_ok());
             assert!(kd.secret_bytes().is_err()); // encrypted key
@@ -1075,14 +1075,14 @@ mod tests {
                 // get the cipher view
                 let cipher = mk2.cipher_view(&ciphermk).unwrap();
                 // decrypt the multikey using the cipher
-                let mk = cipher.decrypt().unwrap();
-                mk
+                
+                cipher.decrypt().unwrap()
             };
 
             let attr = mk3.attr_view().unwrap();
-            assert_eq!(false, attr.is_encrypted());
-            assert_eq!(false, attr.is_public_key());
-            assert_eq!(true, attr.is_secret_key());
+            assert!(!attr.is_encrypted());
+            assert!(!attr.is_public_key());
+            assert!(attr.is_secret_key());
             let kd = mk3.data_view().unwrap();
             assert!(kd.key_bytes().is_ok());
             assert!(kd.secret_bytes().is_ok());
@@ -1095,7 +1095,7 @@ mod tests {
     #[test]
     fn test_signing_detached_roundtrip() {
         for codec in KEY_CODECS {
-            let mut rng = rand::rngs::OsRng::default();
+            let mut rng = rand::rngs::OsRng;
             let mk = Builder::new_from_random_bytes(codec, &mut rng)
                 .unwrap()
                 .with_comment("test key")
@@ -1111,7 +1111,7 @@ mod tests {
             assert!(kd.secret_bytes().is_ok());
             let conv = mk.conv_view().unwrap();
             let pk = EncodedMultikey::new(Base::Base16Lower, conv.to_public_key().unwrap());
-            println!("{} pubkey: {}", codec, pk.to_string());
+            println!("{} pubkey: {}", codec, pk);
 
             let msg = b"for great justice, move every zig!";
 
@@ -1122,7 +1122,7 @@ mod tests {
                 signmk.sign(msg.as_slice(), false, None).unwrap()
             };
             let sig = EncodedMultisig::new(Base::Base16Lower, signature.clone());
-            println!("signaure: {}", sig.to_string());
+            println!("signaure: {}", sig);
 
             let verifymk = mk.verify_view().unwrap();
             assert!(verifymk.verify(&signature, Some(msg.as_slice())).is_ok());
@@ -1132,7 +1132,7 @@ mod tests {
     #[test]
     fn test_signing_merged_roundtrip() {
         for codec in KEY_CODECS {
-            let mut rng = rand::rngs::OsRng::default();
+            let mut rng = rand::rngs::OsRng;
             let mk = Builder::new_from_random_bytes(codec, &mut rng)
                 .unwrap()
                 .with_comment("test key")
@@ -1168,7 +1168,7 @@ mod tests {
 
     #[test]
     fn test_bls_key_combine() {
-        let mut rng = rand::rngs::OsRng::default();
+        let mut rng = rand::rngs::OsRng;
         let mk1 = Builder::new_from_random_bytes(Codec::Bls12381G1Priv, &mut rng)
             .unwrap()
             .with_comment("test key")

@@ -46,17 +46,17 @@ pub struct KeyShare(
     pub Vec<u8>,
 );
 
-impl Into<Vec<u8>> for KeyShare {
-    fn into(self) -> Vec<u8> {
+impl From<KeyShare> for Vec<u8> {
+    fn from(val: KeyShare) -> Self {
         let mut v = Vec::default();
         // add in the share identifier
-        v.append(&mut Varuint(self.0).into());
+        v.append(&mut Varuint(val.0).into());
         // add in the threshold
-        v.append(&mut Varuint(self.1).into());
+        v.append(&mut Varuint(val.1).into());
         // add in the limit
-        v.append(&mut Varuint(self.2).into());
+        v.append(&mut Varuint(val.2).into());
         // add in the key share data
-        v.append(&mut Varbytes(self.3.clone()).into());
+        v.append(&mut Varbytes(val.3.clone()).into());
         v
     }
 }
@@ -97,13 +97,13 @@ impl<'a> TryDecodeFrom<'a> for KeyShare {
 #[derive(Clone, Default)]
 pub(crate) struct ThresholdData(pub(crate) BTreeMap<u8, KeyShare>);
 
-impl Into<Vec<u8>> for ThresholdData {
-    fn into(self) -> Vec<u8> {
+impl From<ThresholdData> for Vec<u8> {
+    fn from(val: ThresholdData) -> Self {
         let mut v = Vec::default();
         // add in the number of key shares
-        v.append(&mut Varuint(self.0.len()).into());
+        v.append(&mut Varuint(val.0.len()).into());
         // add in the key shares
-        self.0.iter().for_each(|(_, share)| {
+        val.0.iter().for_each(|(_, share)| {
             v.append(&mut share.clone().into());
         });
         v
@@ -163,7 +163,7 @@ impl<'a> AttrView for View<'a> {
                 return b.to_inner();
             }
         }
-        return false;
+        false
     }
 
     fn is_secret_key(&self) -> bool {
@@ -250,7 +250,7 @@ impl<'a> DataView for View<'a> {
         if self.is_encrypted() {
             return Err(AttributesError::EncryptedKey.into());
         }
-        Ok(self.key_bytes()?)
+        self.key_bytes()
     }
 }
 
@@ -331,8 +331,8 @@ impl<'a> FingerprintView for View<'a> {
             // get the key bytes
             let bytes = {
                 let kd = self.mk.data_view()?;
-                let bytes = kd.key_bytes()?;
-                bytes
+                
+                kd.key_bytes()?
             };
             // hash the key bytes using the given codec
             Ok(mh::Builder::new_from_bytes(codec, bytes)?.try_build()?)
@@ -346,8 +346,8 @@ impl<'a> ConvView for View<'a> {
         // get the secret key bytes
         let secret_bytes = {
             let kd = self.mk.data_view()?;
-            let secret_bytes = kd.secret_bytes()?;
-            secret_bytes
+            
+            kd.secret_bytes()?
         };
 
         match self.mk.codec {
@@ -454,8 +454,8 @@ impl<'a> ConvView for View<'a> {
 
         let key_bytes = {
             let kd = pk.data_view()?;
-            let key_bytes = kd.key_bytes()?;
-            key_bytes
+            
+            kd.key_bytes()?
         };
 
         let mut buf: Vec<u8> = Vec::new();
@@ -523,15 +523,15 @@ impl<'a> ConvView for View<'a> {
     fn to_ssh_private_key(&self) -> Result<ssh_key::PrivateKey, Error> {
         let secret_bytes = {
             let kd = self.mk.data_view()?;
-            let secret_bytes = kd.secret_bytes()?;
-            secret_bytes
+            
+            kd.secret_bytes()?
         };
 
         let pk = self.to_public_key()?;
         let key_bytes = {
             let kd = pk.data_view()?;
-            let key_bytes = kd.key_bytes()?;
-            key_bytes
+            
+            kd.key_bytes()?
         };
 
         let mut secret_buf: Vec<u8> = Vec::new();
@@ -647,8 +647,8 @@ impl<'a> SignView for View<'a> {
         // get the secret key bytes
         let secret_bytes = {
             let kd = self.mk.data_view()?;
-            let secret_bytes = kd.secret_bytes()?;
-            secret_bytes
+            
+            kd.secret_bytes()?
         };
 
         // get the signature scheme
@@ -768,8 +768,8 @@ impl<'a> ThresholdView for View<'a> {
         // get the secret key bytes
         let secret_bytes = {
             let kd = self.mk.data_view()?;
-            let secret_bytes = kd.secret_bytes()?;
-            secret_bytes
+            
+            kd.secret_bytes()?
         };
 
         match self.mk.codec {
@@ -789,7 +789,7 @@ impl<'a> ThresholdView for View<'a> {
                 };
                 let key_shares = secret_key
                     .split(threshold, limit)
-                    .map_err(|e| ThresholdError::Bls(e))?;
+                    .map_err(ThresholdError::Bls)?;
 
                 let mut shares = Vec::with_capacity(key_shares.len());
 
@@ -829,7 +829,7 @@ impl<'a> ThresholdView for View<'a> {
 
                 let key_shares = secret_key
                     .split(threshold, limit)
-                    .map_err(|e| ThresholdError::Bls(e))?;
+                    .map_err(ThresholdError::Bls)?;
 
                 let mut shares = Vec::with_capacity(key_shares.len());
 
@@ -987,8 +987,8 @@ impl<'a> VerifyView for View<'a> {
         let attr = self.mk.attr_view()?;
         let pubmk = if attr.is_secret_key() {
             let kc = self.mk.conv_view()?;
-            let mk = kc.to_public_key()?;
-            mk
+            
+            kc.to_public_key()?
         } else {
             self.mk.clone()
         };
@@ -1037,7 +1037,7 @@ impl<'a> VerifyView for View<'a> {
                 // get the message
                 let msg = if let Some(msg) = msg {
                     msg
-                } else if multisig.message.len() > 0 {
+                } else if !multisig.message.is_empty() {
                     multisig.message.as_slice()
                 } else {
                     return Err(VerifyError::MissingMessage.into());
@@ -1075,7 +1075,7 @@ impl<'a> VerifyView for View<'a> {
                 // get the message
                 let msg = if let Some(msg) = msg {
                     msg
-                } else if multisig.message.len() > 0 {
+                } else if !multisig.message.is_empty() {
                     multisig.message.as_slice()
                 } else {
                     return Err(VerifyError::MissingMessage.into());
@@ -1117,7 +1117,7 @@ impl<'a> VerifyView for View<'a> {
                 // get the message
                 let msg = if let Some(msg) = msg {
                     msg
-                } else if multisig.message.len() > 0 {
+                } else if !multisig.message.is_empty() {
                     multisig.message.as_slice()
                 } else {
                     return Err(VerifyError::MissingMessage.into());
@@ -1155,7 +1155,7 @@ impl<'a> VerifyView for View<'a> {
                 // get the message
                 let msg = if let Some(msg) = msg {
                     msg
-                } else if multisig.message.len() > 0 {
+                } else if !multisig.message.is_empty() {
                     multisig.message.as_slice()
                 } else {
                     return Err(VerifyError::MissingMessage.into());

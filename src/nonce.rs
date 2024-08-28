@@ -55,13 +55,13 @@ impl AsRef<[u8]> for Nonce {
     }
 }
 
-impl Into<Vec<u8>> for Nonce {
-    fn into(self) -> Vec<u8> {
+impl From<Nonce> for Vec<u8> {
+    fn from(val: Nonce) -> Self {
         let mut v = Vec::default();
         // add the sigil
         v.append(&mut SIGIL.into());
         // add the nonce bytes
-        v.append(&mut Varbytes(self.nonce.clone()).into());
+        v.append(&mut Varbytes(val.nonce.clone()).into());
         v
     }
 }
@@ -148,7 +148,7 @@ impl Builder {
     pub fn try_build_encoded(&self) -> Result<EncodedNonce, Error> {
         Ok(EncodedNonce::new(
             self.base_encoding
-                .unwrap_or_else(|| Nonce::preferred_encoding()),
+                .unwrap_or_else(Nonce::preferred_encoding),
             self.try_build()?,
         ))
     }
@@ -168,7 +168,7 @@ mod tests {
 
     #[test]
     fn test_random() {
-        let mut rng = rand::rngs::OsRng::default();
+        let mut rng = rand::rngs::OsRng;
         let n = Builder::new_from_random_bytes(32, &mut rng)
             .try_build()
             .unwrap();
@@ -179,7 +179,7 @@ mod tests {
 
     #[test]
     fn test_binary_roundtrip() {
-        let mut rng = rand::rngs::OsRng::default();
+        let mut rng = rand::rngs::OsRng;
         let n = Builder::new_from_random_bytes(32, &mut rng)
             .try_build()
             .unwrap();
@@ -189,7 +189,7 @@ mod tests {
 
     #[test]
     fn test_encoded_roundtrip() {
-        let mut rng = rand::rngs::OsRng::default();
+        let mut rng = rand::rngs::OsRng;
         let n = Builder::new_from_random_bytes(32, &mut rng)
             .try_build_encoded()
             .unwrap();
@@ -201,7 +201,7 @@ mod tests {
 
     #[test]
     fn test_nonce_multisig_roundtrip() {
-        let mut rng = rand::rngs::OsRng::default();
+        let mut rng = rand::rngs::OsRng;
         let mk = mk::Builder::new_from_random_bytes(Codec::Ed25519Priv, &mut rng)
             .unwrap()
             .with_comment("test key")

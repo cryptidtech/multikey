@@ -67,8 +67,8 @@ mod tests {
         // try to get the associated public key
         let mk = {
             let conv = sk.conv_view().unwrap();
-            let mk = conv.to_public_key().unwrap();
-            mk
+            
+            conv.to_public_key().unwrap()
         };
 
         //let v: Vec<u8> = mk.clone().into();
@@ -123,8 +123,8 @@ mod tests {
 
         let mk = {
             let conv = sk.conv_view().unwrap();
-            let mk = conv.to_public_key().unwrap();
-            mk
+            
+            conv.to_public_key().unwrap()
         };
 
         assert_tokens(
