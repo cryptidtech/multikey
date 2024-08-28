@@ -404,15 +404,15 @@ impl Builder {
         let key_bytes = match codec {
             Codec::Ed25519Priv => Ed25519Keypair::random(rng).private.to_bytes().to_vec(),
             Codec::P256Priv => EcdsaKeypair::random(rng, EcdsaCurve::NistP256)
-                .map_err(|e| ConversionsError::SshKey(e))?
+                .map_err(ConversionsError::SshKey)?
                 .private_key_bytes()
                 .to_vec(),
             Codec::P384Priv => EcdsaKeypair::random(rng, EcdsaCurve::NistP384)
-                .map_err(|e| ConversionsError::SshKey(e))?
+                .map_err(ConversionsError::SshKey)?
                 .private_key_bytes()
                 .to_vec(),
             Codec::P521Priv => EcdsaKeypair::random(rng, EcdsaCurve::NistP521)
-                .map_err(|e| ConversionsError::SshKey(e))?
+                .map_err(ConversionsError::SshKey)?
                 .private_key_bytes()
                 .to_vec(),
             Codec::Secp256K1Priv => k256::SecretKey::random(rng).to_bytes().to_vec(),
@@ -592,7 +592,7 @@ impl Builder {
                         ..Default::default()
                     })
                 }
-                s => return Err(ConversionsError::UnsupportedAlgorithm(s.to_string()).into()),
+                s => Err(ConversionsError::UnsupportedAlgorithm(s.to_string()).into()),
             },
             Ed25519 => {
                 let key_bytes = match sshkey.key_data() {
@@ -780,7 +780,7 @@ impl Builder {
                         ..Default::default()
                     })
                 }
-                s => return Err(ConversionsError::UnsupportedAlgorithm(s.to_string()).into()),
+                s => Err(ConversionsError::UnsupportedAlgorithm(s.to_string()).into()),
             },
             Ed25519 => {
                 let key_bytes = match sshkey.key_data() {
@@ -819,7 +819,7 @@ impl Builder {
 
     fn with_attribute(mut self, attr: AttrId, data: &Vec<u8>) -> Self {
         let mut attributes = self.attributes.unwrap_or_default();
-        attributes.insert(attr, data.clone().into());
+        attributes.insert(attr, data.to_owned().into());
         self.attributes = Some(attributes);
         self
     }
@@ -831,7 +831,8 @@ impl Builder {
 
     /// add in the threshold value
     pub fn with_threshold(self, threshold: usize) -> Self {
-        self.with_attribute(AttrId::Threshold, &Varuint(threshold).into())
+        let v: Vec<u8> = Varuint(threshold).into();
+        self.with_attribute(AttrId::Threshold, &v)
     }
 
     /// add in the limit value
@@ -861,7 +862,7 @@ impl Builder {
     pub fn try_build_encoded(self) -> Result<EncodedMultikey, Error> {
         Ok(BaseEncoded::new(
             self.base_encoding
-                .unwrap_or_else(|| Multikey::preferred_encoding()),
+                .unwrap_or_else(Multikey::preferred_encoding),
             self.try_build()?,
         ))
     }

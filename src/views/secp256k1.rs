@@ -22,7 +22,7 @@ pub const SECRET_KEY_LENGTH: usize = 32;
 /// the number of bytes in an secp256k1 public key
 pub const PUBLIC_KEY_LENGTH: usize = 33;
 /// the RFC 4251 algorithm name for SSH compatibility
-pub const ALGORITHM_NAME: &'static str = "secp256k1@multikey";
+pub const ALGORITHM_NAME: &str = "secp256k1@multikey";
 
 pub(crate) struct View<'a> {
     mk: &'a Multikey,
@@ -43,7 +43,7 @@ impl<'a> AttrView for View<'a> {
                 return b.to_inner();
             }
         }
-        return false;
+        false
     }
 
     fn is_secret_key(&self) -> bool {
@@ -79,7 +79,7 @@ impl<'a> DataView for View<'a> {
         if self.is_encrypted() {
             return Err(AttributesError::EncryptedKey.into());
         }
-        Ok(self.key_bytes()?)
+        self.key_bytes()
     }
 }
 
@@ -160,8 +160,8 @@ impl<'a> FingerprintView for View<'a> {
             // get the key bytes
             let bytes = {
                 let kd = self.mk.data_view()?;
-                let bytes = kd.key_bytes()?;
-                bytes
+                
+                kd.key_bytes()?
             };
             // hash the key bytes using the given codec
             Ok(mh::Builder::new_from_bytes(codec, bytes)?.try_build()?)
@@ -175,8 +175,8 @@ impl<'a> ConvView for View<'a> {
         // get the secret key bytes
         let secret_bytes = {
             let kd = self.mk.data_view()?;
-            let secret_bytes = kd.secret_bytes()?;
-            secret_bytes
+            
+            kd.secret_bytes()?
         };
 
         // build an secp256k1 signing key so that we can derive the verifying key
@@ -204,22 +204,22 @@ impl<'a> ConvView for View<'a> {
 
         let key_bytes = {
             let kd = pk.data_view()?;
-            let key_bytes = kd.key_bytes()?;
-            key_bytes
+            
+            kd.key_bytes()?
         };
 
         let mut buff: Vec<u8> = Vec::new();
         key_bytes
             .encode(&mut buff)
-            .map_err(|e| ConversionsError::SshEncoding(e))?;
+            .map_err(ConversionsError::SshEncoding)?;
         let opaque_key_bytes = ssh_key::public::OpaquePublicKeyBytes::decode(&mut buff.as_slice())
-            .map_err(|e| ConversionsError::SshKey(e))?;
+            .map_err(ConversionsError::SshKey)?;
 
         Ok(ssh_key::PublicKey::new(
             ssh_key::public::KeyData::Other(ssh_key::public::OpaquePublicKey {
                 algorithm: ssh_key::Algorithm::Other(
                     ssh_key::AlgorithmName::new(ALGORITHM_NAME)
-                        .map_err(|e| ConversionsError::SshKeyLabel(e))?,
+                        .map_err(ConversionsError::SshKeyLabel)?,
                 ),
                 key: opaque_key_bytes,
             }),
@@ -231,39 +231,39 @@ impl<'a> ConvView for View<'a> {
     fn to_ssh_private_key(&self) -> Result<ssh_key::PrivateKey, Error> {
         let secret_bytes = {
             let kd = self.mk.data_view()?;
-            let secret_bytes = kd.secret_bytes()?;
-            secret_bytes
+            
+            kd.secret_bytes()?
         };
 
         let mut buf: Vec<u8> = Vec::new();
         secret_bytes
             .encode(&mut buf)
-            .map_err(|e| ConversionsError::SshEncoding(e))?;
+            .map_err(ConversionsError::SshEncoding)?;
         let opaque_private_key_bytes =
             ssh_key::private::OpaquePrivateKeyBytes::decode(&mut buf.as_slice())
-                .map_err(|e| ConversionsError::SshKey(e))?;
+                .map_err(ConversionsError::SshKey)?;
 
         let pk = self.to_public_key()?;
         let key_bytes = {
             let kd = pk.data_view()?;
-            let key_bytes = kd.key_bytes()?;
-            key_bytes
+            
+            kd.key_bytes()?
         };
 
         buf.clear();
         key_bytes
             .encode(&mut buf)
-            .map_err(|e| ConversionsError::SshEncoding(e))?;
+            .map_err(ConversionsError::SshEncoding)?;
         let opaque_public_key_bytes =
             ssh_key::public::OpaquePublicKeyBytes::decode(&mut buf.as_slice())
-                .map_err(|e| ConversionsError::SshKey(e))?;
+                .map_err(ConversionsError::SshKey)?;
 
         Ok(ssh_key::PrivateKey::new(
             ssh_key::private::KeypairData::Other(ssh_key::private::OpaqueKeypair {
                 public: ssh_key::public::OpaquePublicKey {
                     algorithm: ssh_key::Algorithm::Other(
                         ssh_key::AlgorithmName::new(ALGORITHM_NAME)
-                            .map_err(|e| ConversionsError::SshKeyLabel(e))?,
+                            .map_err(ConversionsError::SshKeyLabel)?,
                     ),
                     key: opaque_public_key_bytes,
                 },
@@ -271,7 +271,7 @@ impl<'a> ConvView for View<'a> {
             }),
             self.mk.comment.clone(),
         )
-        .map_err(|e| ConversionsError::SshKey(e))?)
+        .map_err(ConversionsError::SshKey)?)
     }
 }
 
@@ -286,8 +286,8 @@ impl<'a> SignView for View<'a> {
         // get the secret key bytes
         let secret_bytes = {
             let kd = self.mk.data_view()?;
-            let secret_bytes = kd.secret_bytes()?;
-            secret_bytes
+            
+            kd.secret_bytes()?
         };
 
         let secret_key = {
@@ -297,9 +297,9 @@ impl<'a> SignView for View<'a> {
                 .map_err(|_| {
                     ConversionsError::SecretKeyFailure("failed to get secret key bytes".to_string())
                 })?;
-            let secret_key = SigningKey::from_bytes(&bytes.into())
-                .map_err(|e| ConversionsError::SecretKeyFailure(e.to_string()))?;
-            secret_key
+            
+            SigningKey::from_bytes(&bytes.into())
+                .map_err(|e| ConversionsError::SecretKeyFailure(e.to_string()))?
         };
 
         // sign the data
@@ -321,8 +321,8 @@ impl<'a> VerifyView for View<'a> {
         let attr = self.mk.attr_view()?;
         let pubmk = if attr.is_secret_key() {
             let kc = self.mk.conv_view()?;
-            let mk = kc.to_public_key()?;
-            mk
+            
+            kc.to_public_key()?
         } else {
             self.mk.clone()
         };
@@ -330,8 +330,8 @@ impl<'a> VerifyView for View<'a> {
         // get the secret key bytes
         let key_bytes = {
             let kd = pubmk.data_view()?;
-            let key_bytes = kd.key_bytes()?;
-            key_bytes
+            
+            kd.key_bytes()?
         };
 
         // build an secp256k1 verifying key so that we can derive the verifying key
@@ -356,14 +356,14 @@ impl<'a> VerifyView for View<'a> {
         // get the message
         let msg = if let Some(msg) = msg {
             msg
-        } else if multisig.message.len() > 0 {
+        } else if !multisig.message.is_empty() {
             multisig.message.as_slice()
         } else {
             return Err(VerifyError::MissingMessage.into());
         };
 
         verifying_key.verify(msg, &sig).map_err(|e| {
-            println!("{}", e.to_string());
+            println!("{}", e);
             VerifyError::BadSignature(e.to_string())
         })?;
 

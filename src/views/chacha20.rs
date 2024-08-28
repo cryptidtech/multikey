@@ -46,7 +46,7 @@ impl<'a> AttrView for View<'a> {
                 return b.to_inner();
             }
         }
-        return false;
+        false
     }
 
     fn is_secret_key(&self) -> bool {
@@ -69,7 +69,7 @@ impl<'a> DataView for View<'a> {
             .mk
             .attributes
             .get(&AttrId::KeyData)
-            .ok_or_else(|| AttributesError::MissingKey)?;
+            .ok_or(AttributesError::MissingKey)?;
         Ok(key.clone())
     }
 
@@ -78,7 +78,7 @@ impl<'a> DataView for View<'a> {
         if self.is_encrypted() {
             return Err(AttributesError::EncryptedKey.into());
         }
-        Ok(self.key_bytes()?)
+        self.key_bytes()
     }
 }
 
@@ -93,7 +93,7 @@ impl<'a> CipherAttrView for View<'a> {
             .mk
             .attributes
             .get(&AttrId::CipherNonce)
-            .ok_or_else(|| CipherError::MissingNonce)?;
+            .ok_or(CipherError::MissingNonce)?;
         if nonce.len() != NONCE_LENGTH {
             Err(CipherError::InvalidNonceLen.into())
         } else {
@@ -113,7 +113,7 @@ impl<'a> KdfAttrView for View<'a> {
             .mk
             .attributes
             .get(&AttrId::KdfCodec)
-            .ok_or_else(|| KdfError::MissingCodec)?;
+            .ok_or(KdfError::MissingCodec)?;
         Ok(Codec::try_from(codec.as_slice())?)
     }
 
@@ -123,7 +123,7 @@ impl<'a> KdfAttrView for View<'a> {
             .mk
             .attributes
             .get(&AttrId::KdfSalt)
-            .ok_or_else(|| KdfError::MissingSalt)?;
+            .ok_or(KdfError::MissingSalt)?;
         if salt.len() != SALT_LENGTH {
             Err(KdfError::InvalidSaltLen.into())
         } else {
@@ -137,14 +137,14 @@ impl<'a> KdfAttrView for View<'a> {
             .mk
             .attributes
             .get(&AttrId::KdfRounds)
-            .ok_or_else(|| KdfError::MissingRounds)?;
+            .ok_or(KdfError::MissingRounds)?;
         Ok(Varuint::<usize>::try_from(rounds.as_slice())?.to_inner())
     }
 }
 
 impl<'a> CipherView for View<'a> {
     fn decrypt(&self) -> Result<Multikey, Error> {
-        let cipher = self.cipher.ok_or_else(|| CipherError::MissingCodec)?;
+        let cipher = self.cipher.ok_or(CipherError::MissingCodec)?;
         // make sure the viewed key is an encrypted secret key
         let attr = self.mk.attr_view()?;
         if !attr.is_encrypted() || !attr.is_secret_key() {
@@ -159,7 +159,7 @@ impl<'a> CipherView for View<'a> {
 
         // create the chacha nonce from the data
         let n = chacha20poly1305::Nonce::from_slice(nonce.as_slice())
-            .ok_or_else(|| CipherError::InvalidNonce)?;
+            .ok_or(CipherError::InvalidNonce)?;
 
         // get the key data from the passed-in Multikey
         let key = {
@@ -173,13 +173,13 @@ impl<'a> CipherView for View<'a> {
 
         // create the chacha key from the data
         let k = chacha20poly1305::Key::from_slice(key.as_slice())
-            .ok_or_else(|| CipherError::InvalidKey)?;
+            .ok_or(CipherError::InvalidKey)?;
 
         // get the encrypted key bytes from the viewed Multikey (self)
         let msg = {
             let attr = self.mk.data_view()?;
-            let msg = attr.key_bytes()?;
-            msg
+            
+            attr.key_bytes()?
         };
 
         // decrypt the key bytes
@@ -201,7 +201,7 @@ impl<'a> CipherView for View<'a> {
     }
 
     fn encrypt(&self) -> Result<Multikey, Error> {
-        let cipher = self.cipher.ok_or_else(|| CipherError::MissingCodec)?;
+        let cipher = self.cipher.ok_or(CipherError::MissingCodec)?;
         // make sure the viewed key is not encrypted
         let attr = self.mk.attr_view()?;
         if attr.is_encrypted() {
@@ -217,7 +217,7 @@ impl<'a> CipherView for View<'a> {
         };
 
         let n = chacha20poly1305::Nonce::from_slice(nonce.as_slice())
-            .ok_or_else(|| CipherError::InvalidNonce)?;
+            .ok_or(CipherError::InvalidNonce)?;
 
         // get the key data from the passed-in Multikey
         let key = {
@@ -230,13 +230,13 @@ impl<'a> CipherView for View<'a> {
         };
 
         let k = chacha20poly1305::Key::from_slice(key.as_slice())
-            .ok_or_else(|| CipherError::InvalidKey)?;
+            .ok_or(CipherError::InvalidKey)?;
 
         // get the secret bytes from the viewed Multikey
         let msg = {
             let kd = self.mk.data_view()?;
-            let msg = kd.secret_bytes()?;
-            msg
+            
+            kd.secret_bytes()?
         };
 
         // encrypt the secret bytes from the viewed Multikey
@@ -278,8 +278,8 @@ impl<'a> FingerprintView for View<'a> {
         // get the key bytes
         let bytes = {
             let kd = self.mk.data_view()?;
-            let bytes = kd.key_bytes()?;
-            bytes
+            
+            kd.key_bytes()?
         };
         // hash the key bytes using the given codec
         Ok(mh::Builder::new_from_bytes(codec, bytes)?.try_build()?)
