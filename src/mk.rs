@@ -92,18 +92,18 @@ impl EncodingInfo for Multikey {
 }
 
 impl From<Multikey> for Vec<u8> {
-    fn from(val: Multikey) -> Self {
+    fn from(mk: Multikey) -> Self {
         let mut v = Vec::default();
         // add in the sigil
         v.append(&mut SIGIL.into());
         // add in the key codec
-        v.append(&mut val.codec.into());
+        v.append(&mut mk.codec.into());
         // add in the comment
-        v.append(&mut Varbytes(val.comment.as_bytes().to_vec()).into());
+        v.append(&mut Varbytes(mk.comment.as_bytes().to_vec()).into());
         // add in the number of codec-specific attributes
-        v.append(&mut Varuint(val.attributes.len()).into());
+        v.append(&mut Varuint(mk.attributes.len()).into());
         // add in the codec-specific attributes
-        val.attributes.iter().for_each(|(id, attr)| {
+        mk.attributes.iter().for_each(|(id, attr)| {
             v.append(&mut (*id).into());
             v.append(&mut Varbytes(attr.to_vec()).into());
         });
@@ -912,8 +912,16 @@ mod tests {
             };
             println!("encoded pubkey: {}: {}", codec, epk);
             println!("encoded pubkey v: {}: {}", codec, hex::encode(vpk));
-            println!("encoded privkey: {}: {}", codec, EncodedMultikey::from(mk.clone()));
-            println!("encoded privkey v: {}: {}", codec, hex::encode(Into::<Vec<u8>>::into(mk.clone())));
+            println!(
+                "encoded privkey: {}: {}",
+                codec,
+                EncodedMultikey::from(mk.clone())
+            );
+            println!(
+                "encoded privkey v: {}: {}",
+                codec,
+                hex::encode(Into::<Vec<u8>>::into(mk.clone()))
+            );
             let _v: Vec<u8> = mk.into();
         }
     }
@@ -1043,7 +1051,7 @@ mod tests {
                 // key and the kdf and cipher attributes and data
                 let cipher = mk1.cipher_view(&ciphermk).unwrap();
                 // encrypt the multikey using the cipher
-                
+
                 cipher.encrypt().unwrap()
             };
 
@@ -1075,7 +1083,7 @@ mod tests {
                 // get the cipher view
                 let cipher = mk2.cipher_view(&ciphermk).unwrap();
                 // decrypt the multikey using the cipher
-                
+
                 cipher.decrypt().unwrap()
             };
 
