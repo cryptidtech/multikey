@@ -818,7 +818,7 @@ impl Builder {
 
     fn with_attribute(mut self, attr: AttrId, data: &Vec<u8>) -> Self {
         let mut attributes = self.attributes.unwrap_or_default();
-        attributes.insert(attr, data.clone().into());
+        attributes.insert(attr, data.to_owned().into());
         self.attributes = Some(attributes);
         self
     }
