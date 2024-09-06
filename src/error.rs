@@ -122,10 +122,11 @@ pub enum ConversionsError {
 /// in the case of wasm32 target.
 #[derive(Clone, Debug)]
 pub enum SshErrors {
+    /// Error from [ssh_key::Error]
     Key(ssh_key::Error),
-    /// Invalid label.
+    /// Invalid label from [ssh_encoding::LabelError]
     KeyLabel(ssh_encoding::LabelError),
-    /// Unexpected trailing data at end of message.
+    /// Unexpected trailing data at end of message from [ssh_encoding::Error]
     Encoding(ssh_encoding::Error),
 }
 
