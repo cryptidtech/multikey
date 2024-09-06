@@ -121,7 +121,7 @@ pub struct Builder {
 impl Builder {
     /// build from random source
     pub fn new_from_random_bytes(size: usize, rng: &mut (impl RngCore + CryptoRng)) -> Self {
-        let mut bytes = Vec::with_capacity(size);
+        let mut bytes = vec![0; size];
         bytes.resize(size, 0u8);
         rng.fill_bytes(bytes.as_mut());
         Self {
@@ -147,8 +147,7 @@ impl Builder {
     /// build a base encoded vlad
     pub fn try_build_encoded(&self) -> Result<EncodedNonce, Error> {
         Ok(EncodedNonce::new(
-            self.base_encoding
-                .unwrap_or_else(Nonce::preferred_encoding),
+            self.base_encoding.unwrap_or_else(Nonce::preferred_encoding),
             self.try_build()?,
         ))
     }
