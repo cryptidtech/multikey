@@ -167,27 +167,24 @@ impl<'a> AttrView for View<'a> {
     }
 
     fn is_secret_key(&self) -> bool {
-        match self.mk.codec {
+        matches!(
+            self.mk.codec,
             Codec::Bls12381G1Priv
-            | Codec::Bls12381G2Priv
-            | Codec::Bls12381G1PrivShare
-            | Codec::Bls12381G2PrivShare => true,
-            _ => false,
-        }
+                | Codec::Bls12381G2Priv
+                | Codec::Bls12381G1PrivShare
+                | Codec::Bls12381G2PrivShare
+        )
     }
 
     fn is_public_key(&self) -> bool {
-        match self.mk.codec {
-            Codec::Bls12381G1Pub | Codec::Bls12381G2Pub => true,
-            _ => false,
-        }
+        matches!(self.mk.codec, Codec::Bls12381G1Pub | Codec::Bls12381G2Pub)
     }
 
     fn is_secret_key_share(&self) -> bool {
-        match self.mk.codec {
-            Codec::Bls12381G1PrivShare | Codec::Bls12381G2PrivShare => true,
-            _ => false,
-        }
+        matches!(
+            self.mk.codec,
+            Codec::Bls12381G1PrivShare | Codec::Bls12381G2PrivShare
+        )
     }
 }
 
@@ -331,7 +328,7 @@ impl<'a> FingerprintView for View<'a> {
             // get the key bytes
             let bytes = {
                 let kd = self.mk.data_view()?;
-                
+
                 kd.key_bytes()?
             };
             // hash the key bytes using the given codec
@@ -346,7 +343,7 @@ impl<'a> ConvView for View<'a> {
         // get the secret key bytes
         let secret_bytes = {
             let kd = self.mk.data_view()?;
-            
+
             kd.secret_bytes()?
         };
 
@@ -454,7 +451,7 @@ impl<'a> ConvView for View<'a> {
 
         let key_bytes = {
             let kd = pk.data_view()?;
-            
+
             kd.key_bytes()?
         };
 
@@ -523,14 +520,14 @@ impl<'a> ConvView for View<'a> {
     fn to_ssh_private_key(&self) -> Result<ssh_key::PrivateKey, Error> {
         let secret_bytes = {
             let kd = self.mk.data_view()?;
-            
+
             kd.secret_bytes()?
         };
 
         let pk = self.to_public_key()?;
         let key_bytes = {
             let kd = pk.data_view()?;
-            
+
             kd.key_bytes()?
         };
 
@@ -647,7 +644,7 @@ impl<'a> SignView for View<'a> {
         // get the secret key bytes
         let secret_bytes = {
             let kd = self.mk.data_view()?;
-            
+
             kd.secret_bytes()?
         };
 
@@ -768,7 +765,7 @@ impl<'a> ThresholdView for View<'a> {
         // get the secret key bytes
         let secret_bytes = {
             let kd = self.mk.data_view()?;
-            
+
             kd.secret_bytes()?
         };
 
@@ -987,7 +984,7 @@ impl<'a> VerifyView for View<'a> {
         let attr = self.mk.attr_view()?;
         let pubmk = if attr.is_secret_key() {
             let kc = self.mk.conv_view()?;
-            
+
             kc.to_public_key()?
         } else {
             self.mk.clone()
