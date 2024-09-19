@@ -804,6 +804,26 @@ impl Builder {
         }
     }
 
+    /// Create a new [Multikey] from a seed.
+    ///
+    /// Currently only supports [Codec::Ed25519Priv] seeds.
+    pub fn new_from_seed(codec: Codec, seed: &[u8]) -> Result<Self, Error> {
+        match codec {
+            Codec::Ed25519Priv => {
+                let keypair =
+                    ssh_key::private::Ed25519Keypair::from_seed(seed.try_into().map_err(|_| {
+                        ConversionsError::UnsupportedAlgorithm(
+                            "Ed25519 seed must be 32 bytes long".to_string(),
+                        )
+                    })?);
+                let private_key = PrivateKey::try_from(KeypairData::Ed25519(keypair))
+                    .map_err(|e| ConversionsError::Ssh(e.into()))?;
+                Self::new_from_ssh_private_key(&private_key)
+            }
+            _ => Err(ConversionsError::UnsupportedCodec(codec).into()),
+        }
+    }
+
     /// add an encoding
     pub fn with_base_encoding(mut self, base: Base) -> Self {
         self.base_encoding = Some(base);
@@ -1364,5 +1384,25 @@ mod tests {
         let mk2 = Multikey::default();
         assert_eq!(mk1, mk2);
         assert!(mk2.is_null());
+    }
+
+    #[test]
+    fn test_from_seed() {
+        let seed = hex::decode("f9ddcd5118319cc69e6985ef3f4ee3b6c591d46255e1ae5569c8662111b7d3c2")
+            .unwrap();
+        let mk = Builder::new_from_seed(Codec::Ed25519Priv, seed.as_slice())
+            .unwrap()
+            .with_comment("test key")
+            .try_build()
+            .unwrap();
+        let attr = mk.attr_view().unwrap();
+        assert_eq!(mk.codec(), Codec::Ed25519Priv);
+        assert_eq!(mk.comment, "test key".to_string());
+        assert!(!attr.is_encrypted());
+        assert!(!attr.is_public_key());
+        assert!(attr.is_secret_key());
+        let kd = mk.data_view().unwrap();
+        assert!(kd.key_bytes().is_ok());
+        assert!(kd.secret_bytes().is_ok());
     }
 }
