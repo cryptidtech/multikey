@@ -4,18 +4,23 @@ use crate::{
     AttrId, AttrView, CipherAttrView, CipherView, DataView, Error, FingerprintView, KdfAttrView,
     Multikey, Views,
 };
+use chacha20::cipher::{KeyIvInit, StreamCipher};
+use chacha20::{ChaCha20, Nonce};
 use multicodec::Codec;
 use multihash::{mh, Multihash};
 use multitrait::TryDecodeFrom;
 use multiutil::Varuint;
-use sodiumoxide::crypto::aead::chacha20poly1305;
 use zeroize::Zeroizing;
 
 use super::bcrypt::SALT_LENGTH;
 
-/// the constants for ChaCha20
-pub const KEY_LENGTH: usize = chacha20poly1305::KEYBYTES;
-pub const NONCE_LENGTH: usize = chacha20poly1305::NONCEBYTES;
+pub const KEY_SIZE: usize = poly1305::KEY_SIZE;
+
+/// Return the length of the [Nonce]
+#[allow(dead_code)]
+pub(crate) fn nonce_length() -> usize {
+    Nonce::default().len()
+}
 
 pub(crate) struct View<'a> {
     mk: &'a Multikey,
@@ -94,15 +99,15 @@ impl<'a> CipherAttrView for View<'a> {
             .attributes
             .get(&AttrId::CipherNonce)
             .ok_or(CipherError::MissingNonce)?;
-        if nonce.len() != NONCE_LENGTH {
-            Err(CipherError::InvalidNonceLen.into())
-        } else {
-            Ok(nonce.clone())
-        }
+
+        let nonce =
+            Nonce::from_exact_iter(nonce.iter().copied()).ok_or(CipherError::InvalidNonce)?;
+
+        Ok(nonce.to_vec().into())
     }
 
     fn key_length(&self) -> Result<usize, Error> {
-        Ok(KEY_LENGTH)
+        Ok(KEY_SIZE)
     }
 }
 
@@ -158,8 +163,7 @@ impl<'a> CipherView for View<'a> {
         };
 
         // create the chacha nonce from the data
-        let n = chacha20poly1305::Nonce::from_slice(nonce.as_slice())
-            .ok_or(CipherError::InvalidNonce)?;
+        let n = Nonce::from_exact_iter(nonce.iter().copied()).ok_or(CipherError::InvalidNonce)?;
 
         // get the key data from the passed-in Multikey
         let key = {
@@ -172,25 +176,30 @@ impl<'a> CipherView for View<'a> {
         };
 
         // create the chacha key from the data
-        let k = chacha20poly1305::Key::from_slice(key.as_slice())
-            .ok_or(CipherError::InvalidKey)?;
+        let k =
+            chacha20::Key::from_exact_iter(key.iter().copied()).ok_or(CipherError::InvalidKey)?;
 
         // get the encrypted key bytes from the viewed Multikey (self)
         let msg = {
             let attr = self.mk.data_view()?;
-            
             attr.key_bytes()?
         };
 
-        // decrypt the key bytes
-        let dec = chacha20poly1305::open(msg.as_slice(), None, &n, &k)
-            .map_err(|_| CipherError::DecryptionFailed)?;
+        // // decrypt the key bytes
+        // let dec = chacha20poly1305::open(msg.as_slice(), None, &n, &k)
+        //     .map_err(|_| CipherError::DecryptionFailed)?;
+
+        let mut chacha = ChaCha20::new(&k, &n);
+
+        let mut dec = msg.clone();
+
+        chacha.apply_keystream(&mut dec);
 
         // create a new Multikey from the viewed Multikey (self) with the
         // decrypted key and none of the kdf or cipher attributes
         let mut res = self.mk.clone();
         let _ = res.attributes.remove(&AttrId::KeyIsEncrypted);
-        res.attributes.insert(AttrId::KeyData, dec.into());
+        res.attributes.insert(AttrId::KeyData, dec);
         let _ = res.attributes.remove(&AttrId::CipherCodec);
         let _ = res.attributes.remove(&AttrId::CipherKeyLen);
         let _ = res.attributes.remove(&AttrId::CipherNonce);
@@ -216,8 +225,7 @@ impl<'a> CipherView for View<'a> {
             cattr.nonce_bytes()?
         };
 
-        let n = chacha20poly1305::Nonce::from_slice(nonce.as_slice())
-            .ok_or(CipherError::InvalidNonce)?;
+        let n = Nonce::from_exact_iter(nonce.iter().copied()).ok_or(CipherError::InvalidNonce)?;
 
         // get the key data from the passed-in Multikey
         let key = {
@@ -229,18 +237,21 @@ impl<'a> CipherView for View<'a> {
             key
         };
 
-        let k = chacha20poly1305::Key::from_slice(key.as_slice())
-            .ok_or(CipherError::InvalidKey)?;
+        let k =
+            chacha20::Key::from_exact_iter(key.iter().copied()).ok_or(CipherError::InvalidKey)?;
 
         // get the secret bytes from the viewed Multikey
         let msg = {
             let kd = self.mk.data_view()?;
-            
             kd.secret_bytes()?
         };
 
-        // encrypt the secret bytes from the viewed Multikey
-        let enc = chacha20poly1305::seal(msg.as_slice(), None, &n, &k);
+        let mut chacha = ChaCha20::new(&k, &n);
+
+        let mut enc = msg.clone();
+
+        // apply keystream (encrypt)
+        chacha.apply_keystream(&mut enc);
 
         // prepare the cipher attributes
         let cattr = cipher.cipher_attr_view()?;
@@ -260,7 +271,7 @@ impl<'a> CipherView for View<'a> {
         let mut res = self.mk.clone();
         res.attributes
             .insert(AttrId::KeyIsEncrypted, is_encrypted.into());
-        res.attributes.insert(AttrId::KeyData, enc.into());
+        res.attributes.insert(AttrId::KeyData, enc);
         res.attributes
             .insert(AttrId::CipherCodec, cipher_codec.into());
         res.attributes
@@ -278,7 +289,6 @@ impl<'a> FingerprintView for View<'a> {
         // get the key bytes
         let bytes = {
             let kd = self.mk.data_view()?;
-            
             kd.key_bytes()?
         };
         // hash the key bytes using the given codec

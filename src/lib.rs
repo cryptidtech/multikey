@@ -1,5 +1,5 @@
 // SPDX-License-Idnetifier: Apache-2.0
-//! multikey
+//! Multikey Crate
 #![warn(missing_docs)]
 #![deny(
     trivial_casts,
@@ -31,7 +31,7 @@ pub use views::{
 
 /// Multikey type and functions
 pub mod mk;
-pub use mk::{KEY_CODECS, KEY_SHARE_CODECS, Builder, EncodedMultikey, Multikey};
+pub use mk::{Builder, EncodedMultikey, Multikey, KEY_CODECS, KEY_SHARE_CODECS};
 
 /// Nonce type
 pub mod nonce;

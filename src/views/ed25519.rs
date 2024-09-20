@@ -241,7 +241,7 @@ impl<'a> ConvView for View<'a> {
             }),
             self.mk.comment.clone(),
         )
-        .map_err(ConversionsError::SshKey)?)
+        .map_err(|e| ConversionsError::Ssh(e.into()))?)
     }
 }
 

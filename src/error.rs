@@ -103,13 +103,7 @@ pub enum AttributesError {
 pub enum ConversionsError {
     /// Ssh key error
     #[error(transparent)]
-    SshKey(#[from] ssh_key::Error),
-    /// Ssh key label error
-    #[error(transparent)]
-    SshKeyLabel(#[from] ssh_encoding::LabelError),
-    /// Ssh encoding error
-    #[error(transparent)]
-    SshEncoding(#[from] ssh_encoding::Error),
+    Ssh(#[from] SshErrors),
     /// Public key operation failure
     #[error("Public key error: {0}")]
     PublicKeyFailure(String),
@@ -122,6 +116,49 @@ pub enum ConversionsError {
     /// Error with the key codec
     #[error("Unsupported key codec: {0}")]
     UnsupportedCodec(multicodec::Codec),
+}
+
+/// SSH Encoding Errors that cannot be handled by thiserror since they may not use the std feature
+/// in the case of wasm32 target.
+#[derive(Clone, Debug)]
+pub enum SshErrors {
+    /// Error from [ssh_key::Error]
+    Key(ssh_key::Error),
+    /// Invalid label from [ssh_encoding::LabelError]
+    KeyLabel(ssh_encoding::LabelError),
+    /// Unexpected trailing data at end of message from [ssh_encoding::Error]
+    Encoding(ssh_encoding::Error),
+}
+
+/// Impl Display for EncodingError
+impl std::fmt::Display for SshErrors {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            SshErrors::Key(err) => write!(f, "{}", err),
+            SshErrors::KeyLabel(err) => write!(f, "{}", err),
+            SshErrors::Encoding(err) => write!(f, "{}", err),
+        }
+    }
+}
+
+impl std::error::Error for SshErrors {}
+
+impl From<ssh_encoding::Error> for SshErrors {
+    fn from(err: ssh_encoding::Error) -> Self {
+        SshErrors::Encoding(err)
+    }
+}
+
+impl From<ssh_key::Error> for SshErrors {
+    fn from(err: ssh_key::Error) -> Self {
+        SshErrors::Key(err)
+    }
+}
+
+impl From<ssh_encoding::LabelError> for SshErrors {
+    fn from(err: ssh_encoding::LabelError) -> Self {
+        SshErrors::KeyLabel(err)
+    }
 }
 
 /// Cipher errors created by this library
