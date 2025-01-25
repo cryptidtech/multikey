@@ -13,7 +13,7 @@ default = ["serde"]
 
 [dependencies]
 bcrypt-pbkdf = "0.10"
-blsful = { version = "2.5", git = "https://github.com/mikelodder7/blsful.git" }
+blsful = "2.5"
 ed25519-dalek = { version = "2.1", features = ["rand_core"] }
 elliptic-curve = "0.13"
 hex = "0.4"
